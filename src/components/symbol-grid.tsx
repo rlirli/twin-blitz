@@ -1,0 +1,123 @@
+"use client";
+
+import React from "react";
+
+import { Upload, X, Image as ImageIcon, Zap } from "lucide-react";
+import * as LucideIcons from "lucide-react";
+
+import { useSymbolStore } from "@/store/use-symbol-store";
+
+const LUCIDE_ICON_NAMES = Object.keys(LucideIcons)
+  .filter(
+    (key) =>
+      key !== "createLucideIcon" &&
+      (typeof (LucideIcons as any)[key] === "function" ||
+        typeof (LucideIcons as any)[key] === "object") &&
+      /^[A-Z]/.test(key), // Lucide icons start with capital letters
+  )
+  .slice(0, 57);
+
+export const SymbolGrid: React.FC = () => {
+  const { symbols, setSymbol, removeSymbol, clearAll } = useSymbolStore();
+
+  const handleFileChange = (id: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setSymbol(id, event.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const loadDefaults = () => {
+    LUCIDE_ICON_NAMES.forEach((name, index) => {
+      // We can't easily turn a Lucide icon into a data URL on the fly without a canvas,
+      // so for now we'll just store the name and handle rendering accordingly.
+      // But for simplicity in this prototype, let's use placeholder colors/initials
+      // or just assume we'll render the icon if the URL starts with 'icon:'.
+      setSymbol(index, `icon:${name}`);
+    });
+  };
+
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-xl">
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800">1. Manage Symbols</h2>
+          <p className="text-gray-500">Upload 57 unique symbols for your game.</p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={loadDefaults}
+            className="flex items-center gap-2 rounded-lg bg-indigo-50 px-4 py-2 font-medium text-indigo-600 transition-colors hover:bg-indigo-100"
+          >
+            <Zap size={18} />
+            Load Defaults
+          </button>
+          <button
+            onClick={clearAll}
+            className="flex items-center gap-2 rounded-lg bg-gray-50 px-4 py-2 font-medium text-gray-600 transition-colors hover:bg-gray-100"
+          >
+            <X size={18} />
+            Clear All
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+        {symbols.map((symbol) => (
+          <div
+            key={symbol.id}
+            className="group relative flex aspect-square items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-2 transition-all hover:border-indigo-300 hover:bg-indigo-50"
+          >
+            {symbol.url ? (
+              <div className="relative flex h-full w-full items-center justify-center">
+                {symbol.url.startsWith("icon:") ? (
+                  <div className="text-indigo-600">
+                    {(() => {
+                      const IconComp = (LucideIcons as any)[symbol.url.split(":")[1]];
+                      return IconComp ? (
+                        React.createElement(IconComp, { size: 32 })
+                      ) : (
+                        <ImageIcon size={32} />
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <img
+                    src={symbol.url}
+                    alt={symbol.name}
+                    className="max-h-full max-w-full object-contain"
+                  />
+                )}
+                <button
+                  onClick={() => removeSymbol(symbol.id)}
+                  className="absolute -top-1 -right-1 rounded-full bg-red-500 p-1 text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ) : (
+              <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center">
+                <Upload size={20} className="mb-1 text-gray-400 group-hover:text-indigo-500" />
+                <span className="text-[10px] font-medium tracking-wider text-gray-400 uppercase group-hover:text-indigo-500">
+                  Slot {symbol.id + 1}
+                </span>
+                <input
+                  type="file"
+                  className="hidden"
+                  accept="image/*"
+                  onChange={(e) => handleFileChange(symbol.id, e)}
+                />
+              </label>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};

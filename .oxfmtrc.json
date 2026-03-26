@@ -1,0 +1,54 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 100,
+  "tabWidth": 2,
+  "useTabs": false,
+  "semi": true,
+  "singleQuote": false,
+  "bracketSpacing": true,
+  "arrowParens": "always",
+  "sortImports": {
+    "customGroups": [
+      {
+        "groupName": "server-only",
+        "elementNamePattern": ["server-only"]
+      },
+      {
+        "groupName": "react",
+        "elementNamePattern": ["react", "react-dom"]
+      },
+      {
+        "groupName": "next",
+        "elementNamePattern": ["next", "next/**"]
+      },
+      {
+        "groupName": "app",
+        "elementNamePattern": ["@/**", "~/**"]
+      }
+    ],
+    "groups": [
+      "server-only",
+      "react",
+      "next",
+      "external",
+      "app",
+      ["parent", "sibling", "index"],
+      "style"
+    ],
+    "newlinesBetween": true,
+    "order": "asc"
+  },
+  "sortTailwindcss": {
+    "functions": ["tw", "clsx", "cn", "cva"]
+  },
+  "ignorePatterns": [
+    "node_modules",
+    "playwright-report",
+    "*.hbs",
+    "*.md",
+    "dist",
+    "build",
+    ".next",
+    "next-env.d.ts"
+  ]
+}
