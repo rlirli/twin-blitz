@@ -45,3 +45,15 @@ Visit [http://localhost:3000](http://localhost:3000) to personalize your deck, t
 - **No auto-save:** Progress is lost on refresh/close.
 - **PDF-only export:** Most print labs need image files; convert the PDF first.
 - **Hardcoded to p=7:** Cannot generate other deck sizes aside from 57 cards (yet).
+
+
+## 🎯 Roadmap
+
+- [ ] feat: Export as .zip of image files
+- [ ] fix: "Load defaults" should not replace already filled slots
+- [ ] fix: Print page displays paper size in inches instead of cm
+- [ ] feat: Other deck sizes (p=3, p=5, etc.)
+- [ ] feat: Additional default symbol sets
+- [ ] feat: Alternative print modes (4 cards per A4 page, etc.)
+- [ ] feat: Persistent database storage (+ Auth first)
+- [ ] feat: Sharable links to drafts for collaborative design
