@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Twin Blitz ⚡️
 
-## Getting Started
+Personalize and print your own **pattern-matching card game**. Any two cards share exactly one matching symbol.
 
-First, run the development server:
+This generator uses finite projective planes ($p = 7$) to produce a full **57-card deck** from **57 unique symbols**.
 
+
+## ✨ Key Features
+
+- **Fully Customizable:** Swap default symbols with your photos or graphics.
+- **Print-Ready Output:** 57-page PDF with one **84mm** card per page, scaled for either **9x13cm** or **13x18cm** photo paper.
+- **Local & Private:** Everything runs in your browser. No uploads, no servers, no data stored.
+
+> WARNING:
+> This app is **in-memory only**. Since no data is stored on a server, your progress will be lost if you close the tab or refresh the page.
+
+
+## 🚀 Quick Start
+
+### 1. Install dependencies
 ```bash
-bun dev
-# or
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
+bun install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Start the development server
+```bash
+bun dev
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Design your deck
+Visit [http://localhost:3000](http://localhost:3000) to personalize your deck, then print the PDF.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## Learn More
+## 🛠️ Tech Stack
 
-To learn more about Next.js, take a look at the following resources:
+- **Core:** Next.js (App Router), React 19, TypeScript
+- **Styling:** Tailwind CSS 4, Framer Motion
+- **State:** Zustand
+- **Tooling:** Oxc (oxlint/oxfmt)
+- **Runtime:** Bun
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## ⚠️ Known Limitations
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **No auto-save:** Progress is lost on refresh/close.
+- **PDF-only export:** Most print labs need image files; convert the PDF first.
+- **Hardcoded to p=7:** Cannot generate other deck sizes aside from 57 cards (yet).
