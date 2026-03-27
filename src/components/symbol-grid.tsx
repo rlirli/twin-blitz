@@ -7,6 +7,52 @@ import * as LucideIcons from "lucide-react";
 
 import { useSymbolStore } from "@/store/use-symbol-store";
 
+/** Max pixel dimension images are scaled down to before storage (width & height). */
+const SYMBOL_STORAGE_SIZE_PX = 300;
+
+/**
+ * Compress an image File to a JPEG data URL at SYMBOL_STORAGE_SIZE_PX × SYMBOL_STORAGE_SIZE_PX.
+ * Runs entirely in the browser via the Canvas API — no server needed.
+ */
+function compressImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const canvas = document.createElement("canvas");
+      canvas.width = SYMBOL_STORAGE_SIZE_PX;
+      canvas.height = SYMBOL_STORAGE_SIZE_PX;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("Canvas context unavailable"));
+
+      // Scale image to fill the square, preserving aspect ratio (object-fit: contain)
+      const scale = Math.min(
+        SYMBOL_STORAGE_SIZE_PX / img.width,
+        SYMBOL_STORAGE_SIZE_PX / img.height,
+      );
+      const drawW = img.width * scale;
+      const drawH = img.height * scale;
+      const offsetX = (SYMBOL_STORAGE_SIZE_PX - drawW) / 2;
+      const offsetY = (SYMBOL_STORAGE_SIZE_PX - drawH) / 2;
+
+      ctx.clearRect(0, 0, SYMBOL_STORAGE_SIZE_PX, SYMBOL_STORAGE_SIZE_PX);
+      ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
+
+      resolve(canvas.toDataURL("image/jpeg", 0.85));
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Failed to load image"));
+    };
+
+    img.src = objectUrl;
+  });
+}
+
 const LUCIDE_ICON_NAMES = Object.keys(LucideIcons)
   .filter(
     (key) =>
@@ -20,14 +66,18 @@ const LUCIDE_ICON_NAMES = Object.keys(LucideIcons)
 export const SymbolGrid: React.FC = () => {
   const { symbols, setSymbol, removeSymbol, clearAll } = useSymbolStore();
 
-  const handleFileChange = (id: number, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (id: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (!file) return;
+
+    try {
+      const compressed = await compressImage(file);
+      setSymbol(id, compressed);
+    } catch {
+      // Fallback: store raw data URL if canvas compression fails
       const reader = new FileReader();
       reader.onload = (event) => {
-        if (event.target?.result) {
-          setSymbol(id, event.target.result as string);
-        }
+        if (event.target?.result) setSymbol(id, event.target.result as string);
       };
       reader.readAsDataURL(file);
     }

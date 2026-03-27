@@ -9,10 +9,8 @@ This generator uses finite projective planes ($p = 7$) to produce a full **57-ca
 
 - **Fully Customizable:** Swap default symbols with your photos or graphics.
 - **Print-Ready Output:** 57-page PDF with one **84mm** card per page, scaled for either **9x13cm** or **13x18cm** photo paper.
-- **Local & Private:** Everything runs in your browser. No uploads, no servers, no data stored.
-
-> WARNING:
-> This app is **in-memory only**. Since no data is stored on a server, your progress will be lost if you close the tab or refresh the page.
+- **Local & Private:** Everything runs in your browser. No uploads, no servers.
+- **Progress Persisted:** Uploaded symbols are saved to `localStorage` and automatically restored on revisit. Compressed to 300×300 px JPEG client-side to stay well within the 5 MB browser storage limit.
 
 
 ## 🚀 Quick Start
@@ -42,7 +40,7 @@ Visit [http://localhost:3000](http://localhost:3000) to personalize your deck, t
 
 ## ⚠️ Known Limitations
 
-- **No auto-save:** Progress is lost on refresh/close.
+- **localStorage only:** Progress survives refresh but is tied to the device & browser. Data is cleared on "Clear All" or browser storage wipe.
 - **PDF-only export:** Most print labs need image files; convert the PDF first.
 - **Hardcoded to p=7:** Cannot generate other deck sizes aside from 57 cards (yet).
 
