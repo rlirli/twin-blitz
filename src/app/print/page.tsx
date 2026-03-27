@@ -48,7 +48,7 @@ export default function PrintPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 print:bg-white">
+    <div className="bg-background text-foreground min-h-screen print:bg-white">
       {/* Controls Overlay (Hidden on Print) */}
       <div className="fixed top-6 right-6 z-50 flex flex-col gap-4 print:hidden">
         <div className="w-64 space-y-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl">
@@ -96,7 +96,7 @@ export default function PrintPage() {
 
       {/* Print Instructions (Hidden on Print) */}
       <div className="mx-auto max-w-2xl p-12 text-center print:hidden">
-        <h1 className="mb-4 text-3xl font-bold text-gray-800">Print Preparation</h1>
+        <h1 className="text-primary mb-4 text-3xl font-bold">Print Preparation</h1>
         <p className="mb-8 text-gray-600">
           We have generated 57 cards. Each will be centered on a separate page. When you click
           "Print", make sure to set:
