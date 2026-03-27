@@ -13,7 +13,7 @@ import { generateProjectivePlane } from "@/lib/utils/game-core";
 import { getCardPlacements } from "@/lib/utils/layout-engine";
 import { useSymbolStore } from "@/store/use-symbol-store";
 
-type PaperSize = "9x13" | "13x18";
+type PaperSize = "9x13" | "10x15" | "13x18";
 
 export default function PrintPage() {
   const { symbols } = useSymbolStore();
@@ -52,6 +52,7 @@ export default function PrintPage() {
 
   const dimensions = {
     "9x13": { width: "90mm", height: "130mm" },
+    "10x15": { width: "100mm", height: "150mm" },
     "13x18": { width: "130mm", height: "180mm" },
   };
 
@@ -68,7 +69,7 @@ export default function PrintPage() {
           <div className="space-y-2">
             <label className="text-[10px] font-bold text-gray-400 uppercase">Paper Size</label>
             <div className="flex gap-2">
-              {(["9x13", "13x18"] as PaperSize[]).map((size) => (
+              {(["9x13", "10x15", "13x18"] as PaperSize[]).map((size) => (
                 <button
                   key={size}
                   onClick={() => setPaperSize(size)}
@@ -134,7 +135,11 @@ export default function PrintPage() {
           </li>
           <li className="flex gap-3">
             ✅ <span className="font-bold">Paper Size:</span>{" "}
-            {paperSize === "9x13" ? "4x6 in (roughly)" : "5x7 in (roughly)"}
+            {paperSize === "9x13"
+              ? "4x6 in (roughly)"
+              : paperSize === "10x15"
+                ? "4x6 in (standard)"
+                : "5x7 in (roughly)"}
           </li>
           <li className="flex gap-3">
             ✅ <span className="font-bold">Margins:</span> None

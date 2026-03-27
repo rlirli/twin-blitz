@@ -13,6 +13,7 @@ const MM_TO_INCH = 25.4;
 /** Paper dimensions in mm based on selection. */
 const PAPER_DIMENSIONS = {
   "9x13": { w: 90, h: 130 },
+  "10x15": { w: 100, h: 150 },
   "13x18": { w: 130, h: 180 },
 };
 
@@ -27,7 +28,7 @@ async function renderCardToCanvas(
   cardIdx: number,
   symbolIndices: number[],
   symbols: SymbolSlot[],
-  paperSize: "9x13" | "13x18",
+  paperSize: "9x13" | "10x15" | "13x18",
 ): Promise<HTMLCanvasElement> {
   const { w, h } = PAPER_DIMENSIONS[paperSize];
   const pxW = Math.round((w / MM_TO_INCH) * DPI);
@@ -163,7 +164,7 @@ function drawRotatedImage(
 export async function exportCardsToZip(
   rawCards: number[][],
   symbols: SymbolSlot[],
-  paperSize: "9x13" | "13x18",
+  paperSize: "9x13" | "10x15" | "13x18",
   onProgress?: (count: number) => void,
 ): Promise<Blob> {
   const zip = new JSZip();
