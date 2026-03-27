@@ -54,19 +54,26 @@ export const CardPreview: React.FC = () => {
   };
 
   return (
-    <div className="mt-12 rounded-2xl border border-gray-200 bg-gray-50 p-6">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">2. Preview Cards</h2>
-          <p className="text-gray-500">Checking the 57 generated cards.</p>
-        </div>
+    <div
+      className="bg-card border-border mb-16 rounded-2xl border px-8 py-6"
+      style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.05)" }}
+    >
+      <div className="mb-8">
+        <span className="bg-primary-soft text-primary mb-2 block inline-flex w-fit items-center rounded-full py-1 pr-3 pl-0.5 text-[0.65rem] font-bold tracking-widest uppercase">
+          Step 2
+        </span>
+        <h2 className="text-card-foreground mb-1 text-xl font-extrabold tracking-tight">
+          Preview Card Deck
+        </h2>
+        <p className="text-muted-foreground text-sm">
+          Check all 57 generated cards. Every pair shares exactly one symbol.
+        </p>
       </div>
-
       <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {rawCards.map((cardIndices, cardIdx) => (
           <div
             key={cardIdx}
-            className="group relative flex aspect-square items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-white shadow-lg transition-transform hover:scale-105"
+            className="group relative flex aspect-square items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-gray-300 bg-white shadow-lg transition-transform hover:scale-105"
             style={{ width: "100%", maxWidth: "250px" }}
           >
             {/* 84mm marker (visual only) */}

@@ -131,13 +131,16 @@ export const SymbolGrid: React.FC = () => {
   const emptyCount = symbols.filter((s) => s.url === null).length;
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-xl">
+    <div
+      className="bg-card border-border mb-10 rounded-2xl border px-8 py-6"
+      style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.05)" }}
+    >
       {/* Error dialog */}
       {bulkError && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-sm rounded-2xl bg-gray-200 p-6 shadow-2xl dark:bg-black">
             <div className="mb-4 flex items-start justify-between">
-              <h3 className="text-lg font-bold text-gray-900">Too many images</h3>
+              <h3 className="text-card-foreground text-lg font-bold">Too many images</h3>
               <button
                 onClick={() => setBulkError(null)}
                 className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
@@ -145,7 +148,7 @@ export const SymbolGrid: React.FC = () => {
                 <X size={18} />
               </button>
             </div>
-            <p className="mb-1 text-sm text-gray-600">
+            <p className="text-muted-foreground mb-1 text-sm">
               You selected{" "}
               <span className="font-semibold text-red-600">{bulkError.selected} images</span>, but
               only{" "}
@@ -169,7 +172,12 @@ export const SymbolGrid: React.FC = () => {
 
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">1. Manage Symbols</h2>
+          <span className="bg-primary-soft text-primary mb-2 block inline-flex w-fit items-center rounded-full py-1 pr-3 pl-0.5 text-[0.65rem] font-bold tracking-widest uppercase">
+            Step 1
+          </span>
+          <h2 className="text-card-foreground mb-1 text-xl font-extrabold tracking-tight">
+            Manage Symbols
+          </h2>
           <p className="text-gray-500">Upload 57 unique symbols for your game.</p>
         </div>
         <div className="flex gap-3">
@@ -177,8 +185,8 @@ export const SymbolGrid: React.FC = () => {
           <label
             className={`flex items-center gap-2 rounded-lg px-4 py-2 font-medium transition-colors ${
               isBulkLoading || emptyCount === 0
-                ? "cursor-not-allowed bg-gray-100 text-gray-400"
-                : "cursor-pointer bg-indigo-600 text-white hover:bg-indigo-700"
+                ? "bg-muted text-muted-foreground cursor-not-allowed"
+                : "bg-primary text-primary-foreground cursor-pointer hover:brightness-110 active:scale-[0.98]"
             }`}
           >
             <FolderOpen size={18} />
@@ -215,7 +223,7 @@ export const SymbolGrid: React.FC = () => {
         {symbols.map((symbol) => (
           <div
             key={symbol.id}
-            className="group relative flex aspect-square items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-2 transition-all hover:border-indigo-300 hover:bg-indigo-50"
+            className="group relative flex aspect-square items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-2 transition-all hover:border-indigo-300 hover:bg-indigo-50 dark:bg-gray-900 hover:dark:bg-indigo-900"
           >
             {symbol.url ? (
               <div className="relative flex h-full w-full items-center justify-center">
