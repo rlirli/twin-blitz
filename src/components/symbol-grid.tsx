@@ -1,8 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useRef, useState } from "react";
 
-import { Upload, X, Image as ImageIcon, Zap } from "lucide-react";
+import { FolderOpen, Upload, X, Image as ImageIcon, Zap } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 
 import { useSymbolStore } from "@/store/use-symbol-store";
@@ -63,8 +63,16 @@ const LUCIDE_ICON_NAMES = Object.keys(LucideIcons)
   )
   .slice(0, 57);
 
+interface BulkOverflowError {
+  selected: number;
+  available: number;
+}
+
 export const SymbolGrid: React.FC = () => {
   const { symbols, setSymbol, removeSymbol, clearAll } = useSymbolStore();
+  const bulkInputRef = useRef<HTMLInputElement>(null);
+  const [bulkError, setBulkError] = useState<BulkOverflowError | null>(null);
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
 
   const handleFileChange = async (id: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -83,6 +91,33 @@ export const SymbolGrid: React.FC = () => {
     }
   };
 
+  const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+
+    // Find empty slots in order
+    const emptySlots = symbols.filter((s) => s.url === null);
+    const available = emptySlots.length;
+
+    if (files.length > available) {
+      setBulkError({ selected: files.length, available });
+      // Reset the input so the same files can trigger onChange again if needed
+      if (bulkInputRef.current) bulkInputRef.current.value = "";
+      return;
+    }
+
+    setIsBulkLoading(true);
+    // Compress and fill slots in parallel
+    const results = await Promise.allSettled(files.map((file) => compressImage(file)));
+    results.forEach((result, i) => {
+      if (result.status === "fulfilled") {
+        setSymbol(emptySlots[i].id, result.value);
+      }
+    });
+    setIsBulkLoading(false);
+    if (bulkInputRef.current) bulkInputRef.current.value = "";
+  };
+
   const loadDefaults = () => {
     LUCIDE_ICON_NAMES.forEach((name, index) => {
       // We can't easily turn a Lucide icon into a data URL on the fly without a canvas,
@@ -93,14 +128,72 @@ export const SymbolGrid: React.FC = () => {
     });
   };
 
+  const emptyCount = symbols.filter((s) => s.url === null).length;
+
   return (
     <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-xl">
+      {/* Error dialog */}
+      {bulkError && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between">
+              <h3 className="text-lg font-bold text-gray-900">Too many images</h3>
+              <button
+                onClick={() => setBulkError(null)}
+                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="mb-1 text-sm text-gray-600">
+              You selected{" "}
+              <span className="font-semibold text-red-600">{bulkError.selected} images</span>, but
+              only{" "}
+              <span className="font-semibold text-indigo-600">
+                {bulkError.available} empty slot{bulkError.available !== 1 ? "s" : ""}
+              </span>{" "}
+              remain.
+            </p>
+            <p className="mb-6 text-sm text-gray-500">
+              Please select at most {bulkError.available} images, or clear some slots first.
+            </p>
+            <button
+              onClick={() => setBulkError(null)}
+              className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-indigo-700"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">1. Manage Symbols</h2>
           <p className="text-gray-500">Upload 57 unique symbols for your game.</p>
         </div>
         <div className="flex gap-3">
+          {/* Bulk upload */}
+          <label
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 font-medium transition-colors ${
+              isBulkLoading || emptyCount === 0
+                ? "cursor-not-allowed bg-gray-100 text-gray-400"
+                : "cursor-pointer bg-indigo-600 text-white hover:bg-indigo-700"
+            }`}
+          >
+            <FolderOpen size={18} />
+            {isBulkLoading ? "Uploading…" : `Bulk Upload (${emptyCount} free)`}
+            <input
+              ref={bulkInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              disabled={isBulkLoading || emptyCount === 0}
+              onChange={handleBulkUpload}
+            />
+          </label>
+
           <button
             onClick={loadDefaults}
             className="flex items-center gap-2 rounded-lg bg-indigo-50 px-4 py-2 font-medium text-indigo-600 transition-colors hover:bg-indigo-100"
