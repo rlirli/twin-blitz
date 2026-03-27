@@ -7,6 +7,7 @@ import Link from "next/link";
 import * as LucideIcons from "lucide-react";
 import { ArrowLeft, Printer, Settings2 } from "lucide-react";
 
+import { exportCardsToZip } from "@/lib/utils/card-exporter";
 import { generateProjectivePlane } from "@/lib/utils/game-core";
 import { useSymbolStore } from "@/store/use-symbol-store";
 
@@ -15,7 +16,34 @@ type PaperSize = "9x13" | "13x18";
 export default function PrintPage() {
   const { symbols } = useSymbolStore();
   const [paperSize, setPaperSize] = useState<PaperSize>("9x13");
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
   const rawCards = useMemo(() => generateProjectivePlane(7), []);
+
+  const handleExportZip = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    setExportProgress(0);
+
+    try {
+      const blob = await exportCardsToZip(rawCards, symbols, paperSize, (count) => {
+        setExportProgress(count);
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `twin-blitz-cards-${paperSize}cm.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Export failed", e);
+      alert("Failed to create ZIP. Is your browser memory full?");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const dimensions = {
     "9x13": { width: "90mm", height: "130mm" },
@@ -82,6 +110,25 @@ export default function PrintPage() {
           >
             <Printer size={18} />
             Print Collection
+          </button>
+
+          <button
+            onClick={handleExportZip}
+            disabled={isExporting}
+            className={`flex w-full items-center justify-center gap-2 rounded-xl border-2 py-3 font-bold transition-all active:scale-95 ${
+              isExporting
+                ? "cursor-not-allowed border-indigo-100 bg-indigo-50 text-indigo-400"
+                : "border-indigo-100 bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+            }`}
+          >
+            {isExporting ? (
+              <span className="flex items-center gap-2">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
+                Generating ({exportProgress}/57)
+              </span>
+            ) : (
+              "Export as Images (.zip)"
+            )}
           </button>
 
           <Link

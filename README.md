@@ -47,7 +47,7 @@ Visit [http://localhost:3000](http://localhost:3000) to personalize your deck, t
 
 ## 🎯 Roadmap
 
-- [ ] feat: Export as .zip of image files
+- [x] feat: Export as .zip of image files
 - [ ] fix: "Load defaults" should not replace already filled slots
 - [ ] fix: Print page displays paper size in inches instead of cm
 - [ ] feat: Other deck sizes (p=3, p=5, etc.)
