@@ -52,8 +52,8 @@ async function renderCardToCanvas(
 
   ctx.beginPath();
   ctx.arc(centerX, centerY, cardRadius, 0, Math.PI * 2);
-  ctx.strokeStyle = "#e5e7eb"; // Very light gray cutting guide
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = "#94a3b8"; // More prominent cutting guide
+  ctx.lineWidth = 5;
   ctx.stroke();
 
   // 3. Draw symbols at their relative positions using the centralized layout engine

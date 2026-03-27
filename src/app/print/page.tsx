@@ -166,7 +166,7 @@ export default function PrintPage() {
             >
               {/* 84mm Round Card */}
               <div
-                className="relative overflow-hidden rounded-full border border-gray-100 bg-white shadow-[0_0_20px_rgba(0,0,0,0.02)]"
+                className="relative overflow-hidden rounded-full border-2 border-slate-300 bg-white"
                 style={{ width: "84mm", height: "84mm" }}
               >
                 {cardIndices.map((symbolIdx, i) => {
