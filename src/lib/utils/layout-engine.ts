@@ -6,14 +6,14 @@ import { mulberry32 } from "./random";
  * baseScale: multiplier for symbol size
  */
 export const CARD_LAYOUT_SPOTS = [
-  { x: 50, y: 50, baseScale: 1.38 }, // Center
-  { x: 26, y: 26, baseScale: 1.05 },
-  { x: 74, y: 26, baseScale: 1.25 },
-  { x: 26, y: 74, baseScale: 0.95 },
-  { x: 74, y: 74, baseScale: 1.15 },
-  { x: 50, y: 18, baseScale: 1.1 },
-  { x: 50, y: 82, baseScale: 1.2 },
-  { x: 18, y: 50, baseScale: 1.0 },
+  { x: 50, y: 50, baseScale: 1.45 }, // Center
+  { x: 82, y: 50, baseScale: 1.1 }, // East
+  { x: 70, y: 75, baseScale: 1.31 }, // South-East
+  { x: 43, y: 81, baseScale: 1.0 }, // South
+  { x: 21, y: 64, baseScale: 1.21 }, // South-West
+  { x: 21, y: 36, baseScale: 1.16 }, // North-West
+  { x: 43, y: 19, baseScale: 1.26 }, // North
+  { x: 70, y: 25, baseScale: 1.05 }, // North-East
 ];
 
 export interface SymbolPlacement {
@@ -36,7 +36,7 @@ export function getCardPlacements(cardIdx: number): SymbolPlacement[] {
     const rand = mulberry32(seedBase + index);
 
     const rotation = Math.floor(rand() * 360);
-    const scaleMod = 0.85 + rand() * 0.45; // Subtle variation (0.85x to 1.3x)
+    const scaleMod = 0.8 + rand() * 0.45; // Subtle variation (0.80x to 1.3x)
 
     return {
       x: spot.x,
