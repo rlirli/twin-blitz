@@ -2,7 +2,7 @@
 
 import React, { useMemo } from "react";
 
-import { PROJECTIVE_PLANE_ORDER } from "@/lib/constants";
+import { PROJECTIVE_PLANE_ORDER, TOTAL_CARDS } from "@/lib/constants";
 import { generateProjectivePlane } from "@/lib/utils/game-core";
 import { useSymbolStore } from "@/store/use-symbol-store";
 
@@ -10,7 +10,10 @@ import { GameCard } from "./game-card";
 
 export const CardPreview: React.FC = () => {
   const { symbols } = useSymbolStore();
-  const rawCards = useMemo(() => generateProjectivePlane(PROJECTIVE_PLANE_ORDER), []);
+  const rawCards = useMemo(
+    () => generateProjectivePlane(PROJECTIVE_PLANE_ORDER).slice(0, TOTAL_CARDS),
+    [PROJECTIVE_PLANE_ORDER],
+  );
 
   return (
     <div className="bg-card border-border mb-16 rounded-2xl border px-8 py-6 shadow-[0_4px_24px_rgba(0,0,0,0.05)]">

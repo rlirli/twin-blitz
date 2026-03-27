@@ -4,7 +4,7 @@ import { Printer } from "lucide-react";
 
 import { CardPreview } from "@/components/card-preview";
 import { SymbolGrid } from "@/components/symbol-grid";
-import { TOTAL_SYMBOLS } from "@/lib/constants";
+import { TOTAL_SYMBOLS, TOTAL_CARDS } from "@/lib/constants";
 
 export default function Home() {
   return (
@@ -41,7 +41,7 @@ export default function Home() {
 
           <div className="flex flex-wrap gap-2">
             {[
-              `${TOTAL_SYMBOLS} symbols · ${TOTAL_SYMBOLS} cards`,
+              `${TOTAL_SYMBOLS} symbols · ${TOTAL_CARDS} cards`,
               "Custom images",
               "Print-ready",
               "Perfect handmade gift",

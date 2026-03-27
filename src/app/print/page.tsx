@@ -7,7 +7,7 @@ import Link from "next/link";
 import * as LucideIcons from "lucide-react";
 import { ArrowLeft, Printer, Settings2 } from "lucide-react";
 
-import { PROJECTIVE_PLANE_ORDER, TOTAL_SYMBOLS } from "@/lib/constants";
+import { PROJECTIVE_PLANE_ORDER, TOTAL_CARDS } from "@/lib/constants";
 import { exportCardsToZip } from "@/lib/utils/card-exporter";
 import { generateProjectivePlane } from "@/lib/utils/game-core";
 import { getCardPlacements } from "@/lib/utils/layout-engine";
@@ -20,7 +20,10 @@ export default function PrintPage() {
   const [paperSize, setPaperSize] = useState<PaperSize>("9x13");
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
-  const rawCards = useMemo(() => generateProjectivePlane(PROJECTIVE_PLANE_ORDER), []);
+  const rawCards = useMemo(
+    () => generateProjectivePlane(PROJECTIVE_PLANE_ORDER).slice(0, TOTAL_CARDS),
+    [PROJECTIVE_PLANE_ORDER],
+  );
 
   const handleExportZip = async () => {
     if (isExporting) return;
@@ -101,7 +104,7 @@ export default function PrintPage() {
             {isExporting ? (
               <span className="flex items-center gap-2">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
-                Generating ({exportProgress}/{TOTAL_SYMBOLS})
+                Generating ({exportProgress}/{TOTAL_CARDS})
               </span>
             ) : (
               "Export as Images (.zip)"
@@ -122,8 +125,8 @@ export default function PrintPage() {
       <div className="mx-auto max-w-2xl p-12 text-center print:hidden">
         <h1 className="text-primary mb-4 text-3xl font-bold">Print Preparation</h1>
         <p className="mb-8 text-gray-600">
-          We have generated {TOTAL_SYMBOLS} cards. Each will be centered on a separate page. When
-          you click "Print", make sure to set:
+          We have generated {TOTAL_CARDS} cards. Each will be centered on a separate page. When you
+          click "Print", make sure to set:
         </p>
         <ul className="space-y-3 rounded-xl border border-indigo-100 bg-indigo-50 p-6 text-left font-medium text-indigo-900">
           <li className="flex gap-3">
