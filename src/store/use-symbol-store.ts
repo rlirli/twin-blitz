@@ -16,7 +16,9 @@ interface SymbolState {
   isComplete: () => boolean;
 }
 
-const INITIAL_SYMBOLS: SymbolSlot[] = Array.from({ length: 57 }, (_, i) => ({
+import { TOTAL_SYMBOLS } from "@/lib/constants";
+
+const INITIAL_SYMBOLS: SymbolSlot[] = Array.from({ length: TOTAL_SYMBOLS }, (_, i) => ({
   id: i,
   url: null,
   name: `Symbol ${i + 1}`,

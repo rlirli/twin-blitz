@@ -4,6 +4,7 @@ import { Printer } from "lucide-react";
 
 import { CardPreview } from "@/components/card-preview";
 import { SymbolGrid } from "@/components/symbol-grid";
+import { TOTAL_SYMBOLS } from "@/lib/constants";
 
 export default function Home() {
   return (
@@ -21,7 +22,7 @@ export default function Home() {
                 <span className="text-primary italic">Blitz</span>
               </h1>
               <p className="text-muted-foreground mt-4 max-w-lg text-lg leading-relaxed text-pretty">
-                Upload 57 personal images and get a ready-to-print{" "}
+                Upload {TOTAL_SYMBOLS} personal images and get a ready-to-print{" "}
                 <strong className="text-foreground font-bold">matching card game</strong> where
                 every pair of cards shares exactly one symbol — a truly unique handmade gift.
               </p>
@@ -38,32 +39,31 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Feature pills */}
           <div className="flex flex-wrap gap-2">
-            {["57 symbols · 57 cards", "Custom images", "Print-ready", "Perfect handmade gift"].map(
-              (pill) => (
-                <span
-                  key={pill}
-                  className="text-muted-foreground bg-card border-border rounded-full border px-3 py-1 text-xs font-semibold"
-                >
-                  {pill}
-                </span>
-              ),
-            )}
+            {[
+              `${TOTAL_SYMBOLS} symbols · ${TOTAL_SYMBOLS} cards`,
+              "Custom images",
+              "Print-ready",
+              "Perfect handmade gift",
+            ].map((pill) => (
+              <span
+                key={pill}
+                className="text-muted-foreground bg-card border-border rounded-full border px-3 py-1 text-xs font-semibold"
+              >
+                {pill}
+              </span>
+            ))}
           </div>
         </header>
 
         {/* ── How It Works ── */}
         <section className="mb-10">
-          <div
-            className="bg-card border-border flex flex-wrap gap-8 rounded-2xl border px-8 py-6"
-            style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.05)" }}
-          >
+          <div className="bg-card border-border flex flex-wrap gap-8 rounded-2xl border px-8 py-6 shadow-[0_4px_24px_rgba(0,0,0,0.05)]">
             {[
               {
                 step: "01",
                 title: "Upload your symbols",
-                desc: "Add 57 images — photos, stickers, drawings, anything personal.",
+                desc: `Add ${TOTAL_SYMBOLS} images — photos, stickers, drawings, anything personal.`,
               },
               {
                 step: "02",
@@ -87,17 +87,14 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Step 1: Symbols */}
         <section>
           <SymbolGrid />
         </section>
 
-        {/* Step 2: Preview */}
         <section>
           <CardPreview />
         </section>
 
-        {/* ── Footer ── */}
         <footer className="border-border text-muted-foreground border-t pt-10 text-center text-xs leading-relaxed">
           <p>
             Built with love for handmade gifts.{" "}
