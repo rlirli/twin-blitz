@@ -186,7 +186,7 @@ export const SymbolGrid: React.FC = () => {
             className={`flex items-center gap-2 rounded-lg px-4 py-2 font-medium transition-colors ${
               isBulkLoading || emptyCount === 0
                 ? "bg-muted text-muted-foreground cursor-not-allowed"
-                : "bg-primary text-primary-foreground cursor-pointer hover:brightness-110 active:scale-[0.98]"
+                : "bg-primary/90 hover:bg-primary text-primary-foreground cursor-pointer hover:brightness-110 active:scale-[0.98]"
             }`}
           >
             <FolderOpen size={18} />
@@ -204,14 +204,14 @@ export const SymbolGrid: React.FC = () => {
 
           <button
             onClick={loadDefaults}
-            className="flex items-center gap-2 rounded-lg bg-indigo-50 px-4 py-2 font-medium text-indigo-600 transition-colors hover:bg-indigo-100"
+            className="bg-primary/90 hover:bg-primary text-primary-foreground flex items-center gap-2 rounded-lg px-4 py-2 font-medium transition-colors"
           >
             <Zap size={18} />
             Load Defaults
           </button>
           <button
             onClick={clearAll}
-            className="flex items-center gap-2 rounded-lg bg-gray-50 px-4 py-2 font-medium text-gray-600 transition-colors hover:bg-gray-100"
+            className="bg-muted text-muted-foreground hover:bg-muted-foreground/50 hover:text-foreground flex items-center gap-2 rounded-lg px-4 py-2 font-medium transition-colors"
           >
             <X size={18} />
             Clear All
@@ -223,7 +223,7 @@ export const SymbolGrid: React.FC = () => {
         {symbols.map((symbol) => (
           <div
             key={symbol.id}
-            className="group relative flex aspect-square items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-2 transition-all hover:border-indigo-300 hover:bg-indigo-50 dark:bg-gray-900 hover:dark:bg-indigo-900"
+            className="group bg-primary/10 hover:border-primary hover:bg-primary/80 relative flex aspect-square items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-gray-200 p-2 transition-all"
           >
             {symbol.url ? (
               <div className="relative flex h-full w-full items-center justify-center">
