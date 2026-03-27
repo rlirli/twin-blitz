@@ -7,11 +7,14 @@ import * as LucideIcons from "lucide-react";
 
 import { useSymbolStore } from "@/store/use-symbol-store";
 
-/** Max pixel dimension images are scaled down to before storage (width & height). */
+/** Max pixel dimension images are scaled down to before storage. */
 const SYMBOL_STORAGE_SIZE_PX = 300;
 
+/** Quality setting for compressed WebP images (0.0 to 1.0). */
+const SYMBOL_STORAGE_QUALITY = 0.85;
+
 /**
- * Compress an image File to a JPEG data URL at SYMBOL_STORAGE_SIZE_PX × SYMBOL_STORAGE_SIZE_PX.
+ * Compress an image File to a WebP data URL at SYMBOL_STORAGE_SIZE_PX × SYMBOL_STORAGE_SIZE_PX.
  * Runs entirely in the browser via the Canvas API — no server needed.
  */
 function compressImage(file: File): Promise<string> {
@@ -28,7 +31,7 @@ function compressImage(file: File): Promise<string> {
       const ctx = canvas.getContext("2d");
       if (!ctx) return reject(new Error("Canvas context unavailable"));
 
-      // Scale image to fill the square, preserving aspect ratio (object-fit: contain)
+      // Scale image to fit the square, preserving aspect ratio (object-fit: contain)
       const scale = Math.min(
         SYMBOL_STORAGE_SIZE_PX / img.width,
         SYMBOL_STORAGE_SIZE_PX / img.height,
@@ -41,7 +44,8 @@ function compressImage(file: File): Promise<string> {
       ctx.clearRect(0, 0, SYMBOL_STORAGE_SIZE_PX, SYMBOL_STORAGE_SIZE_PX);
       ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
 
-      resolve(canvas.toDataURL("image/webp", 0.85));
+      // WebP is efficient for storage and visually high-quality, and supports transparency
+      resolve(canvas.toDataURL("image/webp", SYMBOL_STORAGE_QUALITY));
     };
 
     img.onerror = () => {
@@ -63,15 +67,16 @@ const LUCIDE_ICON_NAMES = Object.keys(LucideIcons)
   )
   .slice(0, 57);
 
-interface BulkOverflowError {
-  selected: number;
-  available: number;
+interface BulkError {
+  type: "overflow" | "quota";
+  selected?: number;
+  available?: number;
 }
 
 export const SymbolGrid: React.FC = () => {
-  const { symbols, setSymbol, removeSymbol, clearAll } = useSymbolStore();
+  const { symbols, setSymbol, setBulkSymbols, removeSymbol, clearAll } = useSymbolStore();
   const bulkInputRef = useRef<HTMLInputElement>(null);
-  const [bulkError, setBulkError] = useState<BulkOverflowError | null>(null);
+  const [bulkError, setBulkError] = useState<BulkError | null>(null);
   const [isBulkLoading, setIsBulkLoading] = useState(false);
 
   const handleFileChange = async (id: number, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -81,13 +86,17 @@ export const SymbolGrid: React.FC = () => {
     try {
       const compressed = await compressImage(file);
       setSymbol(id, compressed);
-    } catch {
-      // Fallback: store raw data URL if canvas compression fails
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) setSymbol(id, event.target.result as string);
-      };
-      reader.readAsDataURL(file);
+    } catch (err: any) {
+      if (err.name === "QuotaExceededError" || err.message?.includes("quota")) {
+        setBulkError({ type: "quota" });
+      } else {
+        // Fallback: store raw data URL if canvas compression fails (risky for quota)
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          if (event.target?.result) setSymbol(id, event.target.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -100,32 +109,44 @@ export const SymbolGrid: React.FC = () => {
     const available = emptySlots.length;
 
     if (files.length > available) {
-      setBulkError({ selected: files.length, available });
-      // Reset the input so the same files can trigger onChange again if needed
+      setBulkError({ type: "overflow", selected: files.length, available });
       if (bulkInputRef.current) bulkInputRef.current.value = "";
       return;
     }
 
     setIsBulkLoading(true);
-    // Compress and fill slots in parallel
-    const results = await Promise.allSettled(files.map((file) => compressImage(file)));
-    results.forEach((result, i) => {
-      if (result.status === "fulfilled") {
-        setSymbol(emptySlots[i].id, result.value);
+    try {
+      // Compress in parallel
+      const results = await Promise.allSettled(files.map((file) => compressImage(file)));
+
+      // Collect only successful compressions
+      const updates = results
+        .map((result, i) =>
+          result.status === "fulfilled" ? { id: emptySlots[i].id, url: result.value } : null,
+        )
+        .filter((u): u is { id: number; url: string } => u !== null);
+
+      // Perform a SINGLE batch update to the store (one localStorage write)
+      if (updates.length > 0) {
+        setBulkSymbols(updates);
       }
-    });
-    setIsBulkLoading(false);
-    if (bulkInputRef.current) bulkInputRef.current.value = "";
+    } catch (err: any) {
+      console.error("Bulk upload failed:", err);
+      if (err.name === "QuotaExceededError" || err.message?.includes("quota")) {
+        setBulkError({ type: "quota" });
+      }
+    } finally {
+      setIsBulkLoading(false);
+      if (bulkInputRef.current) bulkInputRef.current.value = "";
+    }
   };
 
   const loadDefaults = () => {
-    LUCIDE_ICON_NAMES.forEach((name, index) => {
-      // We can't easily turn a Lucide icon into a data URL on the fly without a canvas,
-      // so for now we'll just store the name and handle rendering accordingly.
-      // But for simplicity in this prototype, let's use placeholder colors/initials
-      // or just assume we'll render the icon if the URL starts with 'icon:'.
-      setSymbol(index, `icon:${name}`);
-    });
+    const updates = LUCIDE_ICON_NAMES.map((name, index) => ({
+      id: index,
+      url: `icon:${name}`,
+    }));
+    setBulkSymbols(updates);
   };
 
   const emptyCount = symbols.filter((s) => s.url === null).length;
@@ -138,33 +159,62 @@ export const SymbolGrid: React.FC = () => {
       {/* Error dialog */}
       {bulkError && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl bg-gray-200 p-6 shadow-2xl dark:bg-black">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-zinc-900">
             <div className="mb-4 flex items-start justify-between">
-              <h3 className="text-card-foreground text-lg font-bold">Too many images</h3>
+              <div className="flex items-center gap-3">
+                {bulkError.type === "quota" ? (
+                  <div className="rounded-full bg-red-100 p-2 text-red-600 dark:bg-red-900/30">
+                    <LucideIcons.AlertTriangle size={24} />
+                  </div>
+                ) : (
+                  <div className="rounded-full bg-indigo-100 p-2 text-indigo-600 dark:bg-indigo-900/30">
+                    <LucideIcons.Layers size={24} />
+                  </div>
+                )}
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                  {bulkError.type === "quota" ? "Storage Limit Reached" : "Too Many Images"}
+                </h3>
+              </div>
               <button
                 onClick={() => setBulkError(null)}
-                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-zinc-800"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
-            <p className="text-muted-foreground mb-1 text-sm">
-              You selected{" "}
-              <span className="font-semibold text-red-600">{bulkError.selected} images</span>, but
-              only{" "}
-              <span className="font-semibold text-indigo-600">
-                {bulkError.available} empty slot{bulkError.available !== 1 ? "s" : ""}
-              </span>{" "}
-              remain.
-            </p>
-            <p className="mb-6 text-sm text-gray-500">
-              Please select at most {bulkError.available} images, or clear some slots first.
-            </p>
+
+            {bulkError.type === "quota" ? (
+              <div className="space-y-4">
+                <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+                  Your browser's storage limit for this site has been exceeded. This usually happens
+                  when uploading many high-resolution images at once.
+                </p>
+                <div className="rounded-xl border border-red-100 bg-red-50/50 p-4 dark:border-red-900/20 dark:bg-red-950/20">
+                  <h4 className="mb-1 text-xs font-bold tracking-wider text-red-700 uppercase dark:text-red-400">
+                    How to fix:
+                  </h4>
+                  <ul className="list-inside list-disc space-y-1 text-xs text-red-600 dark:text-red-400/80">
+                    <li>Clear current symbols and try again</li>
+                    <li>Upload images in smaller batches</li>
+                    <li>Try using a different browser (e.g. Chrome) if the issue persists</li>
+                  </ul>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+                You selected <span className="font-bold text-indigo-600">{bulkError.selected}</span>{" "}
+                images, but only{" "}
+                <span className="font-bold text-indigo-600">{bulkError.available}</span> slot
+                {bulkError.available !== 1 ? "s" : ""} remain. Please select fewer images or clear
+                some slots first.
+              </p>
+            )}
+
             <button
               onClick={() => setBulkError(null)}
-              className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-indigo-700"
+              className="mt-6 w-full rounded-xl bg-indigo-600 px-4 py-3 font-bold text-white transition-all hover:bg-indigo-700 active:scale-[0.98]"
             >
-              Got it
+              Understand
             </button>
           </div>
         </div>

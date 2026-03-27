@@ -10,6 +10,7 @@ export interface SymbolSlot {
 interface SymbolState {
   symbols: SymbolSlot[];
   setSymbol: (id: number, url: string) => void;
+  setBulkSymbols: (updates: { id: number; url: string }[]) => void;
   removeSymbol: (id: number) => void;
   clearAll: () => void;
   isComplete: () => boolean;
@@ -32,21 +33,26 @@ export const useSymbolStore = create<SymbolState>()(
         set((state) => ({
           symbols: state.symbols.map((s) => (s.id === id ? { ...s, url } : s)),
         })),
+      setBulkSymbols: (updates) =>
+        set((state) => {
+          const updateMap = new Map(updates.map((u) => [u.id, u.url]));
+          return {
+            symbols: state.symbols.map((s) =>
+              updateMap.has(s.id) ? { ...s, url: updateMap.get(s.id)! } : s,
+            ),
+          };
+        }),
       removeSymbol: (id) =>
         set((state) => ({
           symbols: state.symbols.map((s) => (s.id === id ? { ...s, url: null } : s)),
         })),
       clearAll: () => {
-        // Reset in-memory state
         set({ symbols: INITIAL_SYMBOLS });
-        // Also wipe the persisted localStorage entry so the cleared state is saved
-        localStorage.removeItem(STORAGE_KEY);
       },
       isComplete: () => get().symbols.every((s) => s.url !== null),
     }),
     {
       name: STORAGE_KEY,
-      // Only persist the symbols array — actions are not serialisable
       partialize: (state) => ({ symbols: state.symbols }),
     },
   ),
