@@ -41,7 +41,7 @@ function compressImage(file: File): Promise<string> {
       ctx.clearRect(0, 0, SYMBOL_STORAGE_SIZE_PX, SYMBOL_STORAGE_SIZE_PX);
       ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
 
-      resolve(canvas.toDataURL("image/jpeg", 0.85));
+      resolve(canvas.toDataURL("image/webp", 0.85));
     };
 
     img.onerror = () => {
