@@ -172,7 +172,7 @@ export const SymbolGrid: React.FC = () => {
 
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <span className="bg-primary-soft text-primary mb-2 block inline-flex w-fit items-center rounded-full py-1 pr-3 pl-0.5 text-[0.65rem] font-bold tracking-widest uppercase">
+          <span className="bg-primary-soft text-primary mb-2 block inline-flex w-fit items-center rounded-full px-3 py-1 text-[0.65rem] font-bold tracking-widest uppercase">
             Step 1
           </span>
           <h2 className="text-card-foreground mb-1 text-xl font-extrabold tracking-tight">

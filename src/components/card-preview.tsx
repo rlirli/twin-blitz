@@ -59,7 +59,7 @@ export const CardPreview: React.FC = () => {
       style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.05)" }}
     >
       <div className="mb-8">
-        <span className="bg-primary-soft text-primary mb-2 block inline-flex w-fit items-center rounded-full py-1 pr-3 pl-0.5 text-[0.65rem] font-bold tracking-widest uppercase">
+        <span className="bg-primary-soft text-primary mb-2 block inline-flex w-fit items-center rounded-full px-3 py-1 text-[0.65rem] font-bold tracking-widest uppercase">
           Step 2
         </span>
         <h2 className="text-card-foreground mb-1 text-xl font-extrabold tracking-tight">

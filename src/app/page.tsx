@@ -17,7 +17,8 @@ export default function Home() {
                 Card Deck Generator
               </span>
               <h1 className="text-foreground text-5xl leading-none font-black tracking-tighter md:text-6xl">
-                Twin <span className="text-primary italic">Blitz</span>
+                <span className="italic">Twin</span>{" "}
+                <span className="text-primary italic">Blitz</span>
               </h1>
               <p className="text-muted-foreground mt-4 max-w-lg text-lg leading-relaxed text-pretty">
                 Upload 57 personal images and get a ready-to-print{" "}
