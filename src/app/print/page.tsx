@@ -53,15 +53,14 @@ export default function PrintPage() {
   // Positions for 8 symbols (same logic as preview for consistency)
   const getSymbolPlacement = (seed: number, index: number) => {
     const layout = [
-      { x: 50, y: 50, scale: 1.2 },
-      { x: 30, y: 30, scale: 0.9 },
-      { x: 70, y: 30, scale: 1.1 },
-      { x: 30, y: 70, scale: 0.8 },
-      { x: 70, y: 70, scale: 1.0 },
-      { x: 50, y: 22, scale: 0.95 },
-      { x: 50, y: 78, scale: 1.05 },
-      { x: 22, y: 50, scale: 0.85 },
-      { x: 78, y: 50, scale: 1.15 },
+      { x: 50, y: 50, scale: 1.38 }, // Center
+      { x: 26, y: 26, scale: 1.05 },
+      { x: 74, y: 26, scale: 1.25 },
+      { x: 26, y: 74, scale: 0.95 },
+      { x: 74, y: 74, scale: 1.15 },
+      { x: 50, y: 18, scale: 1.1 },
+      { x: 50, y: 82, scale: 1.2 },
+      { x: 18, y: 50, scale: 1.0 },
     ];
     const pos = layout[index];
     // In print, we might want to stabilize rotation for clarity or keep it random
