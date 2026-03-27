@@ -3,6 +3,8 @@ import * as LucideIcons from "lucide-react";
 
 import { SymbolSlot } from "@/store/use-symbol-store";
 
+import { getCardPlacements } from "./layout-engine";
+
 /** Pixel density for print-quality images. */
 const DPI = 300;
 /** mm to inch conversion. */
@@ -53,43 +55,32 @@ async function renderCardToCanvas(
   ctx.lineWidth = 1;
   ctx.stroke();
 
-  // 3. Draw symbols at their relative positions
-  const layout = [
-    { x: 50, y: 50, scale: 1.38 }, // Center
-    { x: 26, y: 26, scale: 1.05 },
-    { x: 74, y: 26, scale: 1.25 },
-    { x: 26, y: 74, scale: 0.95 },
-    { x: 74, y: 74, scale: 1.15 },
-    { x: 50, y: 18, scale: 1.1 },
-    { x: 50, y: 82, scale: 1.2 },
-    { x: 18, y: 50, scale: 1.0 },
-  ];
+  // 3. Draw symbols at their relative positions using the centralized layout engine
+  const placements = getCardPlacements(cardIdx);
 
   for (let i = 0; i < symbolIndices.length; i++) {
     const symbolIdx = symbolIndices[i];
     const symbol = symbols[symbolIdx];
     if (!symbol.url) continue;
 
-    const pos = layout[i];
-    const seed = cardIdx * 100;
-    const rotation = ((seed + i * 45) % 360) * (Math.PI / 180);
+    const placement = placements[i];
+    const rotationRad = placement.rotation * (Math.PI / 180);
 
     // Calculate absolute symbol center relative to the 84mm card area
-    const symX = centerX - cardRadius + (pos.x / 100) * cardPx;
-    const symY = centerY - cardRadius + (pos.y / 100) * cardPx;
+    const symX = centerX - cardRadius + (placement.x / 100) * cardPx;
+    const symY = centerY - cardRadius + (placement.y / 100) * cardPx;
 
     // Load and draw image
     try {
       let imageSource: string = "";
       if (symbol.url.startsWith("icon:")) {
-        // Handle Lucide icon rendering to canvas
         const iconName = symbol.url.split(":")[1];
         imageSource = createLucideSvgDataUrl(iconName);
       } else {
         imageSource = symbol.url;
       }
 
-      await drawRotatedImage(ctx, imageSource, symX, symY, rotation, pos.scale);
+      await drawRotatedImage(ctx, imageSource, symX, symY, rotationRad, placement.scale);
     } catch (e) {
       console.warn(`Failed to export symbol ${symbolIdx} on card ${cardIdx}`, e);
     }

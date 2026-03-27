@@ -7,8 +7,10 @@ import Link from "next/link";
 import * as LucideIcons from "lucide-react";
 import { ArrowLeft, Printer, Settings2 } from "lucide-react";
 
+import { PROJECTIVE_PLANE_ORDER, TOTAL_SYMBOLS } from "@/lib/constants";
 import { exportCardsToZip } from "@/lib/utils/card-exporter";
 import { generateProjectivePlane } from "@/lib/utils/game-core";
+import { getCardPlacements } from "@/lib/utils/layout-engine";
 import { useSymbolStore } from "@/store/use-symbol-store";
 
 type PaperSize = "9x13" | "13x18";
@@ -18,7 +20,7 @@ export default function PrintPage() {
   const [paperSize, setPaperSize] = useState<PaperSize>("9x13");
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
-  const rawCards = useMemo(() => generateProjectivePlane(7), []);
+  const rawCards = useMemo(() => generateProjectivePlane(PROJECTIVE_PLANE_ORDER), []);
 
   const handleExportZip = async () => {
     if (isExporting) return;
@@ -48,30 +50,6 @@ export default function PrintPage() {
   const dimensions = {
     "9x13": { width: "90mm", height: "130mm" },
     "13x18": { width: "130mm", height: "180mm" },
-  };
-
-  // Positions for 8 symbols (same logic as preview for consistency)
-  const getSymbolPlacement = (seed: number, index: number) => {
-    const layout = [
-      { x: 50, y: 50, scale: 1.38 }, // Center
-      { x: 26, y: 26, scale: 1.05 },
-      { x: 74, y: 26, scale: 1.25 },
-      { x: 26, y: 74, scale: 0.95 },
-      { x: 74, y: 74, scale: 1.15 },
-      { x: 50, y: 18, scale: 1.1 },
-      { x: 50, y: 82, scale: 1.2 },
-      { x: 18, y: 50, scale: 1.0 },
-    ];
-    const pos = layout[index];
-    // In print, we might want to stabilize rotation for clarity or keep it random
-    // Let's keep it random for the game's challenge
-    const rotation = (seed + index * 45) % 360;
-
-    return {
-      left: `${pos.x}%`,
-      top: `${pos.y}%`,
-      transform: `translate(-50%, -50%) rotate(${rotation}deg) scale(${pos.scale})`,
-    };
   };
 
   return (
@@ -123,7 +101,7 @@ export default function PrintPage() {
             {isExporting ? (
               <span className="flex items-center gap-2">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
-                Generating ({exportProgress}/57)
+                Generating ({exportProgress}/{TOTAL_SYMBOLS})
               </span>
             ) : (
               "Export as Images (.zip)"
@@ -144,8 +122,8 @@ export default function PrintPage() {
       <div className="mx-auto max-w-2xl p-12 text-center print:hidden">
         <h1 className="text-primary mb-4 text-3xl font-bold">Print Preparation</h1>
         <p className="mb-8 text-gray-600">
-          We have generated 57 cards. Each will be centered on a separate page. When you click
-          "Print", make sure to set:
+          We have generated {TOTAL_SYMBOLS} cards. Each will be centered on a separate page. When
+          you click "Print", make sure to set:
         </p>
         <ul className="space-y-3 rounded-xl border border-indigo-100 bg-indigo-50 p-6 text-left font-medium text-indigo-900">
           <li className="flex gap-3">
@@ -166,57 +144,69 @@ export default function PrintPage() {
 
       {/* Pages for Printing */}
       <div className="flex flex-col items-center print:block">
-        {rawCards.map((cardIndices, cardIdx) => (
-          <div
-            key={cardIdx}
-            className="relative mb-12 flex items-center justify-center overflow-hidden bg-white shadow-2xl print:mb-0 print:break-after-page print:shadow-none"
-            style={{
-              width: dimensions[paperSize].width,
-              height: dimensions[paperSize].height,
-            }}
-          >
-            {/* 84mm Round Card */}
+        {rawCards.map((cardIndices, cardIdx) => {
+          const placements = getCardPlacements(cardIdx);
+
+          return (
             <div
-              className="relative overflow-hidden rounded-full border border-gray-100 bg-white shadow-[0_0_20px_rgba(0,0,0,0.02)]"
-              style={{ width: "84mm", height: "84mm" }}
+              key={cardIdx}
+              className="relative mb-12 flex items-center justify-center overflow-hidden bg-white shadow-2xl print:mb-0 print:break-after-page print:shadow-none"
+              style={{
+                width: dimensions[paperSize].width,
+                height: dimensions[paperSize].height,
+              }}
             >
-              {cardIndices.map((symbolIdx, i) => {
-                const symbol = symbols[symbolIdx];
-                const placement = getSymbolPlacement(cardIdx * 100, i);
+              {/* 84mm Round Card */}
+              <div
+                className="relative overflow-hidden rounded-full border border-gray-100 bg-white shadow-[0_0_20px_rgba(0,0,0,0.02)]"
+                style={{ width: "84mm", height: "84mm" }}
+              >
+                {cardIndices.map((symbolIdx, i) => {
+                  const symbol = symbols[symbolIdx];
+                  const placement = placements[i];
 
-                return (
-                  <div key={symbolIdx} className="absolute" style={placement}>
-                    {symbol.url ? (
-                      symbol.url.startsWith("icon:") ? (
-                        <div className="text-gray-900">
-                          {(() => {
-                            const IconComp = (LucideIcons as any)[symbol.url.split(":")[1]];
-                            return IconComp ? (
-                              React.createElement(IconComp, { size: 48 })
-                            ) : (
-                              <LucideIcons.Image size={48} />
-                            );
-                          })()}
-                        </div>
+                  return (
+                    <div
+                      key={symbolIdx}
+                      className="absolute"
+                      style={{
+                        left: `${placement.x}%`,
+                        top: `${placement.y}%`,
+                        transform: `translate(-50%, -50%) rotate(${placement.rotation}deg) scale(${placement.scale})`,
+                      }}
+                    >
+                      {symbol.url ? (
+                        symbol.url.startsWith("icon:") ? (
+                          <div className="text-gray-900">
+                            {(() => {
+                              const IconComp = (LucideIcons as any)[symbol.url.split(":")[1]];
+                              return IconComp ? (
+                                React.createElement(IconComp, { size: 48 })
+                              ) : (
+                                <LucideIcons.Image size={48} />
+                              );
+                            })()}
+                          </div>
+                        ) : (
+                          <img src={symbol.url} alt="symbol" className="h-16 w-16 object-contain" />
+                        )
                       ) : (
-                        <img src={symbol.url} alt="symbol" className="h-16 w-16 object-contain" />
-                      )
-                    ) : (
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full border border-gray-100 bg-gray-50 text-[10px] text-gray-300">
-                        {symbolIdx}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-gray-100 bg-gray-50 text-[10px] text-gray-300">
+                          {symbolIdx}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
 
-            {/* Tiny label outside the circle for cutting context (optional) */}
-            <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 font-mono text-[8px] text-gray-200">
-              Twin Blitz - Card #{cardIdx + 1}
+              {/* Tiny label outside the circle for cutting context (optional) */}
+              <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 font-mono text-[8px] text-gray-200">
+                Twin Blitz - Card #{cardIdx + 1}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <style jsx global>{`

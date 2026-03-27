@@ -1,6 +1,6 @@
 import React from "react";
 
-import { mulberry32 } from "@/lib/utils/random";
+import { getCardPlacements } from "@/lib/utils/layout-engine";
 import { SymbolSlot } from "@/store/use-symbol-store";
 
 import { CardSymbol } from "./card-symbol";
@@ -11,32 +11,9 @@ interface GameCardProps {
   symbols: SymbolSlot[];
 }
 
-const getSymbolPlacement = (seed: number, index: number) => {
-  const rand = mulberry32(seed + index);
-
-  const layout = [
-    { x: 50, y: 50, scale: 1.38 }, // Center
-    { x: 26, y: 26, scale: 1.05 },
-    { x: 74, y: 26, scale: 1.25 },
-    { x: 26, y: 74, scale: 0.95 },
-    { x: 74, y: 74, scale: 1.15 },
-    { x: 50, y: 18, scale: 1.1 },
-    { x: 50, y: 82, scale: 1.2 },
-    { x: 18, y: 50, scale: 1.0 },
-  ];
-
-  const pos = layout[index];
-  const rotation = Math.floor(rand() * 360);
-  const scaleMod = 0.8 + rand() * 0.5;
-
-  return {
-    left: `${pos.x}%`,
-    top: `${pos.y}%`,
-    transform: `translate(-50%, -50%) rotate(${rotation}deg) scale(${pos.scale * scaleMod})`,
-  };
-};
-
 export const GameCard: React.FC<GameCardProps> = ({ cardIdx, cardIndices, symbols }) => {
+  const placements = React.useMemo(() => getCardPlacements(cardIdx), [cardIdx]);
+
   return (
     <div
       className="group relative flex aspect-square items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-gray-300 bg-white shadow-lg transition-transform hover:scale-105"
@@ -49,14 +26,20 @@ export const GameCard: React.FC<GameCardProps> = ({ cardIdx, cardIndices, symbol
 
       {cardIndices.map((symbolIdx, i) => {
         const symbol = symbols[symbolIdx];
-        const placement = getSymbolPlacement(cardIdx * 100, i);
+        const placement = placements[i];
 
         return (
           <CardSymbol
             key={symbolIdx}
             symbolIdx={symbolIdx}
             url={symbol.url}
-            placement={placement as React.CSSProperties}
+            placement={
+              {
+                left: `${placement.x}%`,
+                top: `${placement.y}%`,
+                transform: `translate(-50%, -50%) rotate(${placement.rotation}deg) scale(${placement.scale})`,
+              } as React.CSSProperties
+            }
           />
         );
       })}
