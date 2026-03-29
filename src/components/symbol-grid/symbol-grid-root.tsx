@@ -4,8 +4,8 @@ import React, { useRef, useState } from "react";
 
 import * as LucideIcons from "lucide-react";
 
-import { lucideIconToImageUrl } from "@/lib/utils/image-processing";
-import { compressImage } from "@/lib/utils/image-processing";
+import { TOTAL_SYMBOLS } from "@/lib/constants";
+import { lucideIconToImageUrl, compressImage } from "@/lib/utils/image-processing";
 import { useSymbolStore } from "@/store/use-symbol-store";
 
 import { BulkErrorDialog, BulkErrorData } from "./bulk-error-dialog";
@@ -16,11 +16,12 @@ const LUCIDE_ICON_NAMES = Object.keys(LucideIcons)
   .filter(
     (key) =>
       key !== "createLucideIcon" &&
+      !key.endsWith("Icon") && // Filter out duplicate names with "Icon" suffix
       (typeof (LucideIcons as any)[key] === "function" ||
         typeof (LucideIcons as any)[key] === "object") &&
       /^[A-Z]/.test(key),
   )
-  .slice(0, 57);
+  .slice(0, TOTAL_SYMBOLS);
 
 export const SymbolGrid: React.FC = () => {
   const { symbols, setSymbol, setBulkSymbols, removeSymbol, clearAll } = useSymbolStore();

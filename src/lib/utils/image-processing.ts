@@ -132,4 +132,3 @@ export async function lucideIconToImageUrl(
   const svgDataUrl = `data:image/svg+xml;base64,${btoa(svg)}`;
   return renderSvgToWebp(svgDataUrl);
 }
-
