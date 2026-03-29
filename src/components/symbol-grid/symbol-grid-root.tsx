@@ -4,6 +4,7 @@ import React, { useRef, useState } from "react";
 
 import * as LucideIcons from "lucide-react";
 
+import { lucideIconToImageUrl } from "@/lib/utils/image-processing";
 import { compressImage } from "@/lib/utils/image-processing";
 import { useSymbolStore } from "@/store/use-symbol-store";
 
@@ -82,12 +83,21 @@ export const SymbolGrid: React.FC = () => {
     }
   };
 
-  const loadDefaults = () => {
-    const updates = LUCIDE_ICON_NAMES.map((name, index) => ({
-      id: index,
-      url: `icon:${name}`,
-    }));
-    setBulkSymbols(updates);
+  const loadDefaults = async () => {
+    setIsBulkLoading(true);
+    try {
+      const results = await Promise.allSettled(
+        LUCIDE_ICON_NAMES.map((name) => lucideIconToImageUrl(LucideIcons as any, name)),
+      );
+      const updates = results
+        .map((result, index) =>
+          result.status === "fulfilled" ? { id: index, url: result.value } : null,
+        )
+        .filter((u): u is { id: number; url: string } => u !== null);
+      if (updates.length > 0) setBulkSymbols(updates);
+    } finally {
+      setIsBulkLoading(false);
+    }
   };
 
   const emptyCount = symbols.filter((s) => s.url === null).length;

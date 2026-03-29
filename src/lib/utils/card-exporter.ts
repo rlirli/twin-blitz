@@ -1,5 +1,4 @@
 import JSZip from "jszip";
-import * as LucideIcons from "lucide-react";
 
 import { SymbolSlot } from "@/store/use-symbol-store";
 
@@ -71,17 +70,9 @@ async function renderCardToCanvas(
     const symX = centerX - cardRadius + (placement.x / 100) * cardPx;
     const symY = centerY - cardRadius + (placement.y / 100) * cardPx;
 
-    // Load and draw image
+    // Draw the symbol image
     try {
-      let imageSource: string = "";
-      if (symbol.url.startsWith("icon:")) {
-        const iconName = symbol.url.split(":")[1];
-        imageSource = createLucideSvgDataUrl(iconName);
-      } else {
-        imageSource = symbol.url;
-      }
-
-      await drawRotatedImage(ctx, imageSource, symX, symY, rotationRad, placement.scale);
+      await drawRotatedImage(ctx, symbol.url, symX, symY, rotationRad, placement.scale);
     } catch (e) {
       console.warn(`Failed to export symbol ${symbolIdx} on card ${cardIdx}`, e);
     }
@@ -97,37 +88,7 @@ async function renderCardToCanvas(
 }
 
 /**
- * Creates an SVG data URL for a Lucide icon by name.
- * This is the easiest way to draw Lucide icons onto a canvas.
- */
-function createLucideSvgDataUrl(name: string): string {
-  const IconComp = (LucideIcons as any)[name];
-  if (!IconComp) return "";
-
-  // This is a bit of a hack: Lucide exports icons as path definitions.
-  // We'll create a simple SVG string for it.
-  // The structure of IconComp is typically [element, props, children]
-  const [, _props, children] = IconComp;
-  const paths = children
-    .map(([tag, attrs]: [string, any]) => {
-      const attrStr = Object.entries(attrs)
-        .map(([k, v]) => `${k}="${v}"`)
-        .join(" ");
-      return `<${tag} ${attrStr} />`;
-    })
-    .join("");
-
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      ${paths}
-    </svg>
-  `;
-
-  return `data:image/svg+xml;base64,${btoa(svg)}`;
-}
-
-/**
- * Helper to draw an image/SVG source at a specific point with rotation and scale.
+ * Helper to draw an image source at a specific point with rotation and scale.
  */
 function drawRotatedImage(
   ctx: CanvasRenderingContext2D,

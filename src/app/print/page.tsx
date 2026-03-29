@@ -4,7 +4,6 @@ import React, { useState, useMemo } from "react";
 
 import Link from "next/link";
 
-import * as LucideIcons from "lucide-react";
 import { ArrowLeft, Printer, Settings2 } from "lucide-react";
 
 import { PROJECTIVE_PLANE_ORDER, TOTAL_CARDS } from "@/lib/constants";
@@ -184,20 +183,7 @@ export default function PrintPage() {
                       }}
                     >
                       {symbol.url ? (
-                        symbol.url.startsWith("icon:") ? (
-                          <div className="text-gray-900">
-                            {(() => {
-                              const IconComp = (LucideIcons as any)[symbol.url.split(":")[1]];
-                              return IconComp ? (
-                                React.createElement(IconComp, { size: 48 })
-                              ) : (
-                                <LucideIcons.Image size={48} />
-                              );
-                            })()}
-                          </div>
-                        ) : (
-                          <img src={symbol.url} alt="symbol" className="h-16 w-16 object-contain" />
-                        )
+                        <img src={symbol.url} alt="symbol" className="h-16 w-16 object-contain" />
                       ) : (
                         <div className="flex h-12 w-12 items-center justify-center rounded-full border border-gray-100 bg-gray-50 text-[10px] text-gray-300">
                           {symbolIdx}
