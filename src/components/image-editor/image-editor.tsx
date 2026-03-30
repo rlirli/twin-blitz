@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 
 import { X, Check, Crop as CropIcon, Scissors } from "lucide-react";
 
+import { cn } from "@/lib/utils/cn";
 import { Transformation, MaskPath, generateSticker } from "@/lib/utils/image-processing";
 import { useSymbolStore } from "@/store/use-symbol-store";
 
@@ -99,22 +100,24 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ slotId, onClose }) => 
         <div className="flex rounded-xl bg-slate-950/50 p-1 ring-1 ring-white/5">
           <button
             onClick={() => setActiveTab("mask")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-black uppercase transition-all sm:gap-2 sm:px-5 sm:py-2 sm:text-xs ${
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-black uppercase transition-all sm:gap-2 sm:px-5 sm:py-2 sm:text-xs",
               activeTab === "mask"
                 ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20"
-                : "text-slate-400 hover:text-white"
-            }`}
+                : "text-slate-400 hover:text-white",
+            )}
           >
             <Scissors size={14} className="sm:h-4 sm:w-4" />
             <span>Mask</span>
           </button>
           <button
             onClick={() => setActiveTab("crop")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-black uppercase transition-all sm:gap-2 sm:px-5 sm:py-2 sm:text-xs ${
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-black uppercase transition-all sm:gap-2 sm:px-5 sm:py-2 sm:text-xs",
               activeTab === "crop"
                 ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20"
-                : "text-slate-400 hover:text-white"
-            }`}
+                : "text-slate-400 hover:text-white",
+            )}
           >
             <CropIcon size={14} className="sm:h-4 sm:w-4" />
             <span>Crop</span>

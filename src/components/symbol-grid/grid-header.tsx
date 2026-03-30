@@ -40,11 +40,12 @@ export const GridHeader: React.FC<GridHeaderProps> = ({
       <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:justify-between sm:gap-3">
         <div className="contents sm:flex sm:items-center sm:gap-3">
           <label
-            className={`col-span-2 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors sm:w-auto sm:py-2 md:text-base ${
+            className={cn(
+              "col-span-2 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors sm:w-auto sm:py-2 md:text-base",
               isBulkLoading || emptyCount === 0
                 ? "bg-muted text-muted-foreground cursor-not-allowed"
-                : "bg-primary/90 text-primary-foreground cursor-pointer hover:brightness-110 active:scale-[0.98]"
-            }`}
+                : "bg-primary/90 text-primary-foreground cursor-pointer hover:brightness-110 active:scale-[0.98]",
+            )}
           >
             <FolderOpen size={18} className="shrink-0" />
             <span className="truncate">

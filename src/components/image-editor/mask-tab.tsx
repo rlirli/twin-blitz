@@ -19,6 +19,7 @@ import { Stage, Layer, Image as KonvaImage, Rect, Group, Line, Ellipse } from "r
 import useImage from "use-image";
 
 import { useMultiTouch } from "@/components/image-editor/use-multi-touch";
+import { cn } from "@/lib/utils/cn";
 import { Transformation, MaskPath, transformMaskData } from "@/lib/utils/image-processing";
 
 interface MaskTabProps {
@@ -515,7 +516,7 @@ function ActionButton({ onClick, icon, color = "indigo", title }: any) {
     <button
       onClick={onClick}
       title={title}
-      className={`rounded-xl p-2.5 transition-all active:scale-90 ${colors[color]}`}
+      className={cn("rounded-xl p-2.5 transition-all active:scale-90", colors[color])}
     >
       {icon}
     </button>
@@ -526,11 +527,12 @@ function ToolButton({ active, onClick, icon, label }: any) {
   return (
     <button
       onClick={onClick}
-      className={`group relative flex items-center justify-center rounded-xl p-3 transition-all ${
+      className={cn(
+        "group relative flex items-center justify-center rounded-xl p-3 transition-all",
         active
           ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/40"
-          : "text-slate-400 hover:bg-slate-800 hover:text-white"
-      }`}
+          : "text-slate-400 hover:bg-slate-800 hover:text-white",
+      )}
     >
       {icon}
       <span className="group-hover:blur-0 pointer-events-none absolute left-full ml-3 scale-90 rounded-md bg-slate-800 px-2 py-1 text-[10px] font-bold text-white opacity-0 blur-sm transition-all group-hover:scale-100 group-hover:opacity-100">
@@ -555,7 +557,10 @@ function ModeButton({ active, onClick, icon, label, color }: any) {
   return (
     <button
       onClick={onClick}
-      className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2 text-[10px] font-black uppercase transition-all active:scale-95 sm:flex-none ${colors[color]}`}
+      className={cn(
+        "flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2 text-[10px] font-black uppercase transition-all active:scale-95 sm:flex-none",
+        colors[color],
+      )}
     >
       {icon}
       <span>{label}</span>

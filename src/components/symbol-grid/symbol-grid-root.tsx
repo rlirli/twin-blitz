@@ -134,11 +134,12 @@ export const SymbolGrid: React.FC = () => {
 
       <div className="relative">
         <div
-          className={`grid grid-cols-3 gap-4 overflow-hidden px-8 transition-all duration-500 ease-in-out sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 ${
+          className={cn(
+            "grid grid-cols-3 gap-4 overflow-hidden px-8 transition-all duration-500 ease-in-out sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8",
             !isExpanded
               ? "max-h-[190px] sm:max-h-[180px] md:max-h-[160px] lg:max-h-[170px]"
-              : "max-h-[50000px]"
-          }`}
+              : "max-h-[50000px]",
+          )}
         >
           {symbols.map((symbol) => (
             <SymbolSlot

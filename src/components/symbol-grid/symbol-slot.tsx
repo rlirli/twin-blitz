@@ -52,9 +52,10 @@ export const SymbolSlot: React.FC<SymbolSlotProps> = ({
 
           {/* Action Overlay */}
           <div
-            className={`absolute inset-0 flex items-center justify-center gap-2 bg-black/40 transition-opacity ${
-              isFocused ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-            }`}
+            className={cn(
+              "absolute inset-0 flex items-center justify-center gap-2 bg-black/40 transition-opacity",
+              isFocused ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+            )}
           >
             <button
               onClick={(e) => {
