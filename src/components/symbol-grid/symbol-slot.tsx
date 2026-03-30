@@ -2,10 +2,10 @@ import React, { useState } from "react";
 
 import { Upload, X, Scissors } from "lucide-react";
 
-import { SymbolSlot as ISymbolSlot } from "@/store/use-symbol-store";
+import { SymbolData } from "@/store/use-symbol-store";
 
 interface SymbolSlotProps {
-  symbol: ISymbolSlot;
+  symbol: SymbolData;
   onFileChange: (id: number, e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemove: (id: number) => void;
   onEdit: (id: number) => void;

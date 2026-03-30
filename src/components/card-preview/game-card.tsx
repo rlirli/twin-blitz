@@ -1,14 +1,14 @@
 import React from "react";
 
 import { getCardPlacements } from "@/lib/utils/layout-engine";
-import { SymbolSlot } from "@/store/use-symbol-store";
+import { SymbolData } from "@/store/use-symbol-store";
 
 import { CardSymbol } from "./card-symbol";
 
 interface GameCardProps {
   cardIdx: number;
   cardIndices: number[];
-  symbols: SymbolSlot[];
+  symbols: SymbolData[];
 }
 
 export const GameCard: React.FC<GameCardProps> = ({ cardIdx, cardIndices, symbols }) => {

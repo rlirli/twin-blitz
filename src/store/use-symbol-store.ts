@@ -4,7 +4,7 @@ import { persist, createJSONStorage, StateStorage } from "zustand/middleware";
 import { getDb, setDb, delDb, DB_KEYS } from "@/lib/db";
 import { Transformation, MaskPath } from "@/lib/utils/image-processing";
 
-export interface SymbolSlot {
+export interface SymbolData {
   id: number;
   url: string | null; // Display-ready sticker (300px WebP)
   sourceId: string | null; // Reference to hi-res source in IDB
@@ -14,7 +14,7 @@ export interface SymbolSlot {
 }
 
 interface SymbolState {
-  symbols: SymbolSlot[];
+  symbols: SymbolData[];
   hasHydrated: boolean;
   setHasHydrated: (state: boolean) => void;
   /** Sets both the final display URL and the high-res source for a slot */
@@ -33,7 +33,7 @@ import { TOTAL_SYMBOLS } from "@/lib/constants";
 
 const DEFAULT_TRANSFORM: Transformation = { x: 0, y: 0, width: 0, height: 0, rotation: 0 };
 
-const INITIAL_SYMBOLS: SymbolSlot[] = Array.from({ length: TOTAL_SYMBOLS }, (_, i) => ({
+const INITIAL_SYMBOLS: SymbolData[] = Array.from({ length: TOTAL_SYMBOLS }, (_, i) => ({
   id: i,
   url: null,
   sourceId: null,

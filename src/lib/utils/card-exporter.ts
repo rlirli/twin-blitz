@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 
-import { SymbolSlot } from "@/store/use-symbol-store";
+import { SymbolData } from "@/store/use-symbol-store";
 
 import { getCardPlacements } from "./layout-engine";
 
@@ -26,7 +26,7 @@ const CARD_DIAMETER_MM = 84;
 async function renderCardToCanvas(
   cardIdx: number,
   symbolIndices: number[],
-  symbols: SymbolSlot[],
+  symbols: SymbolData[],
   paperSize: "9x13" | "10x15" | "13x18",
 ): Promise<HTMLCanvasElement> {
   const { w, h } = PAPER_DIMENSIONS[paperSize];
@@ -124,7 +124,7 @@ function drawRotatedImage(
  */
 export async function exportCardsToZip(
   rawCards: number[][],
-  symbols: SymbolSlot[],
+  symbols: SymbolData[],
   paperSize: "9x13" | "10x15" | "13x18",
   onProgress?: (count: number) => void,
 ): Promise<Blob> {
