@@ -2,13 +2,21 @@
 
 import React, { useEffect, useState } from "react";
 
+import dynamic from "next/dynamic";
+
 import { X, Check, Crop as CropIcon, Scissors } from "lucide-react";
 
 import { Transformation, MaskPath, generateSticker } from "@/lib/utils/image-processing";
 import { useSymbolStore } from "@/store/use-symbol-store";
 
-import { CropTab } from "./crop-tab";
-import { MaskTab } from "./mask-tab";
+const CropTab = dynamic(() => import("./crop-tab").then((mod) => mod.CropTab), {
+  ssr: false,
+  loading: () => <div className="flex h-full items-center justify-center">Loading...</div>,
+});
+const MaskTab = dynamic(() => import("./mask-tab").then((mod) => mod.MaskTab), {
+  ssr: false,
+  loading: () => <div className="flex h-full items-center justify-center">Loading...</div>,
+});
 
 interface ImageEditorProps {
   slotId: number;
