@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 
 import { Upload, X, Scissors } from "lucide-react";
 
@@ -6,6 +6,8 @@ import { SymbolData } from "@/store/use-symbol-store";
 
 interface SymbolSlotProps {
   symbol: SymbolData;
+  isFocused: boolean;
+  onFocus: () => void;
   onFileChange: (id: number, e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemove: (id: number) => void;
   onEdit: (id: number) => void;
@@ -13,24 +15,24 @@ interface SymbolSlotProps {
 
 export const SymbolSlot: React.FC<SymbolSlotProps> = ({
   symbol,
+  isFocused,
+  onFocus,
   onFileChange,
   onRemove,
   onEdit,
 }) => {
-  const [isFocused, setIsFocused] = useState(false);
-
   const handleContainerClick = () => {
     // If we click the container (not a button), toggle focus
     if (symbol.url) {
-      setIsFocused(!isFocused);
+      onFocus();
     }
   };
 
   return (
     <div
       onClick={handleContainerClick}
-      className={`group bg-primary/10 hover:border-primary relative flex aspect-square cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed transition-all ${
-        isFocused ? "border-primary ring-primary/20 ring-2" : "border-gray-200"
+      className={`group bg-primary/10 hover:border-primary relative flex aspect-square cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed transition-all sm:border-2 ${
+        isFocused ? "border-primary" : "border-muted-foreground/20"
       }`}
     >
       {symbol.url ? (
@@ -71,8 +73,8 @@ export const SymbolSlot: React.FC<SymbolSlotProps> = ({
         </div>
       ) : (
         <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center p-2">
-          <Upload size={20} className="mb-1 text-gray-400 group-hover:text-indigo-500" />
-          <span className="text-[10px] font-medium tracking-wider text-gray-400 uppercase group-hover:text-indigo-500">
+          <Upload size={20} className="text-muted-foreground group-hover:text-primary mb-1" />
+          <span className="text-muted-foreground group-hover:text-primary text-[10px] font-medium tracking-wider uppercase">
             Slot {symbol.id + 1}
           </span>
           <input

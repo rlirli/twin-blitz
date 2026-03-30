@@ -34,6 +34,7 @@ export const SymbolGrid: React.FC = () => {
   const [bulkError, setBulkError] = useState<BulkErrorData | null>(null);
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [editingSlotId, setEditingSlotId] = useState<number | null>(null);
+  const [focusedSlotId, setFocusedSlotId] = useState<number | null>(null);
 
   const handleFileChange = async (id: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -43,6 +44,7 @@ export const SymbolGrid: React.FC = () => {
       const sourceUrl = await normalizeSourceImage(file);
       const previewUrl = await compressImage(file);
       await setSymbolWithSource(id, previewUrl, sourceUrl);
+      setFocusedSlotId(id);
     } catch (err: any) {
       if (err.name === "QuotaExceededError" || err.message?.includes("quota")) {
         setBulkError({ type: "quota" });
@@ -53,6 +55,7 @@ export const SymbolGrid: React.FC = () => {
           if (event.target?.result) {
             const dataUrl = event.target.result as string;
             await setSymbolWithSource(id, dataUrl, dataUrl);
+            setFocusedSlotId(id);
           }
         };
         reader.readAsDataURL(file);
@@ -129,8 +132,13 @@ export const SymbolGrid: React.FC = () => {
           <SymbolSlot
             key={symbol.id}
             symbol={symbol}
+            isFocused={focusedSlotId === symbol.id}
+            onFocus={() => setFocusedSlotId(focusedSlotId === symbol.id ? null : symbol.id)}
             onFileChange={handleFileChange}
-            onRemove={removeSymbol}
+            onRemove={(id) => {
+              removeSymbol(id);
+              if (focusedSlotId === id) setFocusedSlotId(null);
+            }}
             onEdit={(id) => setEditingSlotId(id)}
           />
         ))}
