@@ -4,6 +4,7 @@ const nextConfig = {
   images: {
     unoptimized: true, // Necessary because Github Pages cannot run the Next.js image optimizer
   },
+  allowedDevOrigins: ["192.168.1.*"],
 };
 
 export default nextConfig;
