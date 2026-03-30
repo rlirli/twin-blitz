@@ -10,16 +10,20 @@ export default function Home() {
       <div className="mx-auto max-w-6xl">
         {/* ── Header ── */}
         <header className="border-border mb-12 flex flex-col gap-6 border-b pb-10">
-          <div className="flex flex-wrap items-start justify-between gap-5">
-            <div>
-              <span className="bg-primary-soft text-primary mb-3 block inline-flex w-fit items-center rounded-full px-3 py-1 text-[0.65rem] font-bold tracking-widest uppercase">
+          <div className="flex w-full flex-wrap items-center justify-center gap-5">
+            <div className="flex flex-col items-center justify-center">
+              <span className="text-primary mb-3 block inline-flex w-fit items-center rounded-full px-3 py-1 text-[0.65rem] font-bold tracking-widest uppercase">
                 Card Deck Generator
               </span>
-              <h1 className="text-foreground text-5xl leading-none font-black tracking-tighter md:text-6xl">
-                <span className="italic">Twin</span>{" "}
-                <span className="text-primary italic">Blitz</span>
-              </h1>
-              <p className="text-muted-foreground mt-4 max-w-lg text-lg leading-relaxed text-pretty">
+              <div className="bg-primary w-fit rounded-full px-9 py-1">
+                <h1 className="text-foreground -ml-1 text-5xl leading-none font-black tracking-tighter md:text-6xl">
+                  <span className="text-zinc-100 italic dark:text-zinc-400 dark:text-zinc-900">
+                    Twin
+                  </span>{" "}
+                  <span className="text-amber-400 italic dark:text-indigo-700">Blitz</span>
+                </h1>
+              </div>
+              <p className="text-muted-foreground mt-4 max-w-lg text-center text-lg leading-relaxed text-pretty">
                 Upload {TOTAL_SYMBOLS} personal images and get a ready-to-print{" "}
                 <strong className="text-foreground font-bold">matching card game</strong> where
                 every pair of cards shares exactly one symbol — a truly unique handmade gift.
@@ -27,7 +31,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex hidden flex-wrap gap-2">
             {[
               `${TOTAL_SYMBOLS} symbols · ${TOTAL_CARDS} cards`,
               "Custom images",
@@ -42,9 +46,9 @@ export default function Home() {
               </span>
             ))}
           </div>
-        </header>
 
-        <HowItWorks />
+          <HowItWorks />
+        </header>
 
         <section>
           <SymbolGrid />
