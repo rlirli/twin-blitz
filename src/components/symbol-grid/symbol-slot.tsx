@@ -2,6 +2,7 @@ import React from "react";
 
 import { Upload, X, Scissors } from "lucide-react";
 
+import { cn } from "@/lib/utils/cn";
 import { SymbolData } from "@/store/use-symbol-store";
 
 interface SymbolSlotProps {
@@ -21,9 +22,11 @@ export const SymbolSlot: React.FC<SymbolSlotProps> = ({
   onRemove,
   onEdit,
 }) => {
+  const hasSymbolFilled = symbol.url;
+
   const handleContainerClick = () => {
     // If we click the container (not a button), toggle focus
-    if (symbol.url) {
+    if (hasSymbolFilled) {
       onFocus();
     }
   };
@@ -31,14 +34,18 @@ export const SymbolSlot: React.FC<SymbolSlotProps> = ({
   return (
     <div
       onClick={handleContainerClick}
-      className={`group bg-primary/10 hover:border-primary relative flex aspect-square cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed transition-all sm:border-2 ${
-        isFocused ? "border-primary" : "border-muted-foreground/20"
-      }`}
+      className={cn(
+        "group relative flex aspect-square cursor-pointer items-center justify-center overflow-hidden rounded-xl transition-all",
+        "hover:border-primary border border-dashed sm:border-2",
+
+        hasSymbolFilled ? "dark:bg-primary bg-primary/20 dark:border-transparent" : "bg-primary/10",
+        isFocused ? "border-primary border-solid" : "border-muted-foreground/20",
+      )}
     >
-      {symbol.url ? (
+      {hasSymbolFilled ? (
         <div className="relative flex h-full w-full items-center justify-center p-2">
           <img
-            src={symbol.url}
+            src={symbol.url!}
             alt={symbol.name}
             className="max-h-full max-w-full object-contain"
           />
