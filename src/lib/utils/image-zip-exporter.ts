@@ -79,10 +79,10 @@ async function renderCardToCanvas(
   }
 
   // 4. Tiny print label
-  ctx.fillStyle = "#d1d5db";
-  ctx.font = `${Math.round(8 * (DPI / 72))}px monospace`;
+  ctx.fillStyle = "oklch(58.5% 0.233 277.117)"; // indigo-500
+  ctx.font = `${Math.round(9 * (DPI / 72))}px monospace`;
   ctx.textAlign = "center";
-  ctx.fillText(`Twin Blitz - Card #${cardIdx + 1}`, centerX, pxH - 20);
+  ctx.fillText(`TWIN BLITZ - CARD #${cardIdx + 1}`, centerX, pxH - 20);
 
   return canvas;
 }

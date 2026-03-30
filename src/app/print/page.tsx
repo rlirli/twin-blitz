@@ -7,9 +7,9 @@ import Link from "next/link";
 import { ArrowLeft, Printer, Settings2 } from "lucide-react";
 
 import { PROJECTIVE_PLANE_ORDER, TOTAL_CARDS } from "@/lib/constants";
-import { exportCardsToZip } from "@/lib/utils/card-exporter";
 import { cn } from "@/lib/utils/cn";
 import { generateProjectivePlane } from "@/lib/utils/game-core";
+import { exportCardsToZip } from "@/lib/utils/image-zip-exporter";
 import { getCardPlacements } from "@/lib/utils/layout-engine";
 import { useSymbolStore } from "@/store/use-symbol-store";
 
@@ -181,9 +181,13 @@ export default function PrintPage() {
                       }}
                     >
                       {symbol.url ? (
-                        <img src={symbol.url} alt="symbol" className="h-16 w-16 object-contain" />
+                        <img
+                          src={symbol.url}
+                          alt="symbol"
+                          className="pointer-events-none h-16 w-16 object-contain select-none"
+                        />
                       ) : (
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-gray-100 bg-gray-50 text-[10px] text-gray-300">
+                        <div className="pointer-events-none flex h-12 w-12 items-center justify-center rounded-full border border-gray-100 bg-gray-50 text-[10px] text-gray-300 select-none">
                           {symbolIdx}
                         </div>
                       )}
@@ -193,7 +197,7 @@ export default function PrintPage() {
               </div>
 
               {/* Tiny label outside the circle for cutting context (optional) */}
-              <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 font-mono text-[8px] text-gray-200">
+              <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 font-mono text-xs font-bold text-indigo-500 uppercase select-none">
                 Twin Blitz - Card #{cardIdx + 1}
               </div>
             </div>
