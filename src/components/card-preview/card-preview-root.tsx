@@ -34,7 +34,7 @@ export const CardPreview: React.FC = () => {
       </div>
       <div className="relative">
         <div
-          className={`grid grid-cols-1 gap-8 overflow-hidden px-8 pt-3 transition-all duration-500 ease-in-out sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 ${
+          className={`grid grid-cols-1 justify-items-center gap-8 overflow-hidden px-8 pt-3 transition-all duration-500 ease-in-out sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 ${
             !isExpanded ? "max-h-[340px]" : "max-h-[50000px] pb-6"
           }`}
         >
