@@ -1,5 +1,6 @@
 import React from "react";
 
+import { cn } from "@/lib/utils/cn";
 import { getCardPlacements } from "@/lib/utils/layout-engine";
 import { SymbolData } from "@/store/use-symbol-store";
 
@@ -9,20 +10,43 @@ interface GameCardProps {
   cardIdx: number;
   cardIndices: number[];
   symbols: SymbolData[];
+  size?: number;
+  showShadow?: boolean;
+  showLabel?: boolean;
+  interactive?: boolean;
+  className?: string;
 }
 
-export const GameCard: React.FC<GameCardProps> = ({ cardIdx, cardIndices, symbols }) => {
+export const GameCard: React.FC<GameCardProps> = ({
+  cardIdx,
+  cardIndices,
+  symbols,
+  size = 250,
+  showShadow = true,
+  showLabel = true,
+  interactive = true,
+  className,
+}) => {
   const placements = React.useMemo(() => getCardPlacements(cardIdx), [cardIdx]);
+  const symbolSize = Math.round((size / 250) * 48);
 
   return (
     <div
-      className="group relative flex aspect-square items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-gray-300 bg-white shadow-lg transition-transform hover:scale-105"
-      style={{ width: "100%", maxWidth: "250px" }}
+      className={cn(
+        "group relative flex aspect-square items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-gray-300 bg-white",
+        showShadow && "shadow-lg",
+        interactive && "transition-transform hover:scale-105",
+        className,
+      )}
+      style={{ width: `${size}px`, maxWidth: `100%` }}
     >
       <div className="pointer-events-none absolute inset-0 rounded-full border-4 border-dashed border-gray-50" />
-      <div className="absolute top-2 left-1/2 -translate-x-1/2 font-mono text-[10px] text-gray-300">
-        CARD #{cardIdx + 1}
-      </div>
+
+      {showLabel && (
+        <div className="pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 font-mono text-[10px] text-gray-300 select-none">
+          CARD #{cardIdx + 1}
+        </div>
+      )}
 
       {cardIndices.map((symbolIdx, i) => {
         const symbol = symbols[symbolIdx];
@@ -33,6 +57,7 @@ export const GameCard: React.FC<GameCardProps> = ({ cardIdx, cardIndices, symbol
             key={symbolIdx}
             symbolIdx={symbolIdx}
             url={symbol.url}
+            size={symbolSize}
             placement={
               {
                 left: `${placement.x}%`,
