@@ -18,6 +18,7 @@ import {
 import { Stage, Layer, Image as KonvaImage, Rect, Group, Line, Ellipse } from "react-konva";
 import useImage from "use-image";
 
+import { usePinchZoom } from "@/components/image-editor/use-pinch-zoom";
 import { Transformation, MaskPath, transformMaskData } from "@/lib/utils/image-processing";
 
 interface MaskTabProps {
@@ -118,15 +119,25 @@ export const MaskTab: React.FC<MaskTabProps> = ({
   }, [localMaskData, img, cropW, cropH]);
 
   // Interaction handlers (Now in B-space!)
-  const handleMouseDown = (_e: any) => {
+  const handleMouseDown = (e: any) => {
+    // If multi-touch, do not start drawing
+    if (e.evt?.touches?.length > 1) return;
+
     if (!groupRef.current) return;
     setIsDrawing(true);
     const pos = groupRef.current.getRelativePointerPosition();
     setCurrentPath([pos.x, pos.y]);
   };
 
-  const handleMouseMove = (_e: any) => {
+  const handleMouseMove = (e: any) => {
+    // Prevent moving if not drawing, or if multi-touch happens mid-draw
     if (!isDrawing || !currentPath || !groupRef.current) return;
+    if (e.evt?.touches?.length > 1) {
+      // If a second finger touches down while dragging, we can cancel the single drag
+      setIsDrawing(false);
+      setCurrentPath(null);
+      return;
+    }
     const pos = groupRef.current.getRelativePointerPosition();
     if (tool === "brush" || tool === "lasso") {
       setCurrentPath([...currentPath, pos.x, pos.y]);
@@ -135,7 +146,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
     }
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (_e?: any) => {
     if (!isDrawing || !currentPath || !groupRef.current) return;
     setIsDrawing(false);
 
@@ -190,6 +201,19 @@ export const MaskTab: React.FC<MaskTabProps> = ({
     setZoom(scale);
     setStagePos({ x: screenW / 2, y: screenH / 2 });
   };
+
+  const cancelInteraction = () => {
+    setIsDrawing(false);
+    setCurrentPath(null);
+  };
+
+  const { onTouchStart, onTouchMove, onTouchEnd } = usePinchZoom(
+    zoom,
+    setZoom,
+    stagePos,
+    setStagePos,
+    cancelInteraction,
+  );
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden">
@@ -329,6 +353,18 @@ export const MaskTab: React.FC<MaskTabProps> = ({
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
+            onTouchStart={(e) => {
+              onTouchStart(e);
+              handleMouseDown(e);
+            }}
+            onTouchMove={(e) => {
+              onTouchMove(e);
+              handleMouseMove(e);
+            }}
+            onTouchEnd={(e) => {
+              onTouchEnd(e);
+              handleMouseUp(e);
+            }}
             className="cursor-crosshair"
           >
             <Layer>

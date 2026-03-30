@@ -6,6 +6,7 @@ import { RotateCcw, RotateCw, Maximize, ZoomIn, ZoomOut } from "lucide-react";
 import { Stage, Layer, Image as KonvaImage, Rect, Transformer, Group } from "react-konva";
 import useImage from "use-image";
 
+import { usePinchZoom } from "@/components/image-editor/use-pinch-zoom";
 import { Transformation } from "@/lib/utils/image-processing";
 
 interface CropTabProps {
@@ -153,6 +154,13 @@ export const CropTab: React.FC<CropTabProps> = ({
     });
   };
 
+  const { onTouchStart, onTouchMove, onTouchEnd, isPinching } = usePinchZoom(
+    zoom,
+    setZoom,
+    stagePos,
+    setStagePos,
+  );
+
   return (
     <div className="relative flex h-full flex-col overflow-hidden">
       {/* 1. Top Action Bar (Floating) */}
@@ -226,6 +234,9 @@ export const CropTab: React.FC<CropTabProps> = ({
             y={stagePos.y}
             scaleX={zoom}
             scaleY={zoom}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
             className="cursor-move"
           >
             <Layer>
@@ -260,7 +271,7 @@ export const CropTab: React.FC<CropTabProps> = ({
                   opacity={0.4}
                   stroke="#6366f1"
                   strokeWidth={2}
-                  draggable
+                  draggable={!isPinching}
                   onDragEnd={handleDragEnd}
                   onTransformEnd={handleTransformEnd}
                 />
