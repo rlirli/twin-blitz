@@ -133,12 +133,7 @@ export default function PrintPage() {
             ✅ <span className="font-bold">Layout:</span> Portrait
           </li>
           <li className="flex gap-3">
-            ✅ <span className="font-bold">Paper Size:</span>{" "}
-            {paperSize === "9x13"
-              ? "4x6 in (roughly)"
-              : paperSize === "10x15"
-                ? "4x6 in (standard)"
-                : "5x7 in (roughly)"}
+            ✅ <span className="font-bold">Paper Size:</span> {paperSize} cm
           </li>
           <li className="flex gap-3">
             ✅ <span className="font-bold">Margins:</span> None
