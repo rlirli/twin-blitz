@@ -20,7 +20,7 @@ export const CardPreview: React.FC = () => {
   );
 
   return (
-    <div className="bg-card border-border mb-16 rounded-2xl border pt-6 pb-1 shadow-[0_4px_24px_rgba(0,0,0,0.05)]">
+    <div className="bg-card border-border mb-6 rounded-2xl border pt-6 pb-1 shadow-[0_4px_24px_rgba(0,0,0,0.05)]">
       <div className="mb-5 px-8">
         <span className="bg-primary-soft text-primary mb-2 block inline-flex w-fit items-center rounded-full px-3 py-1 text-[0.65rem] font-bold tracking-widest uppercase">
           Step 2

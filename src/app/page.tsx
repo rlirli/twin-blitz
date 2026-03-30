@@ -1,9 +1,6 @@
-import Link from "next/link";
-
-import { Printer } from "lucide-react";
-
 import { CardPreview } from "@/components/card-preview";
 import { HowItWorks } from "@/components/how-it-works";
+import { PrintSection } from "@/components/print-section";
 import { SymbolGrid } from "@/components/symbol-grid";
 import { TOTAL_SYMBOLS, TOTAL_CARDS } from "@/lib/constants";
 
@@ -27,16 +24,6 @@ export default function Home() {
                 <strong className="text-foreground font-bold">matching card game</strong> where
                 every pair of cards shares exactly one symbol — a truly unique handmade gift.
               </p>
-            </div>
-            <div className="mt-2 flex items-center gap-3">
-              <Link
-                href="/print"
-                className="bg-primary text-primary-foreground inline-flex cursor-pointer items-center justify-center gap-2.5 rounded-2xl border-0 px-8 py-3.5 font-bold no-underline transition-all duration-150 hover:brightness-110 active:scale-[0.97]"
-                style={{ boxShadow: "0 8px 32px var(--primary-glow)" }}
-              >
-                <Printer size={18} />
-                Print Cards
-              </Link>
             </div>
           </div>
 
@@ -65,6 +52,10 @@ export default function Home() {
 
         <section>
           <CardPreview />
+        </section>
+
+        <section>
+          <PrintSection />
         </section>
 
         <footer className="border-border text-muted-foreground border-t pt-10 text-center text-xs leading-relaxed">

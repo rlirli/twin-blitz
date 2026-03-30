@@ -115,7 +115,7 @@ export const SymbolGrid: React.FC = () => {
   const emptyCount = symbols.filter((s) => s.url === null).length;
 
   return (
-    <div className="bg-card border-border mb-10 rounded-2xl border pt-6 pb-1 shadow-[0_4px_24px_rgba(0,0,0,0.05)]">
+    <div className="bg-card border-border mb-6 rounded-2xl border pt-6 pb-1 shadow-[0_4px_24px_rgba(0,0,0,0.05)]">
       <BulkErrorDialog error={bulkError} onClose={() => setBulkError(null)} />
 
       {editingSlotId !== null && (
