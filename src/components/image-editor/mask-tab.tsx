@@ -1,0 +1,473 @@
+"use client";
+import React, { useState, useRef, useEffect } from "react";
+
+import {
+  Square,
+  Circle,
+  MousePointer2,
+  Undo2,
+  Minus,
+  Plus,
+  Brush,
+  Combine,
+  Trash2,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
+import { Stage, Layer, Image as KonvaImage, Rect, Group, Line, Ellipse } from "react-konva";
+import useImage from "use-image";
+
+import { Transformation, MaskPath, transformMaskData } from "@/lib/utils/image-processing";
+
+interface MaskTabProps {
+  sourceUrl: string;
+  transformation: Transformation;
+  maskData: MaskPath[];
+  onUpdateMask: (mask: MaskPath[]) => void;
+}
+
+export const MaskTab: React.FC<MaskTabProps> = ({
+  sourceUrl,
+  transformation,
+  maskData,
+  onUpdateMask,
+}) => {
+  const [img] = useImage(sourceUrl);
+  const stageRef = useRef<any>(null);
+  const hasInitializedRef = useRef(false);
+  const [tool, setTool] = useState<MaskPath["tool"]>("lasso");
+  const [mode, setMode] = useState<MaskPath["mode"]>("add");
+  const [brushSize, setBrushSize] = useState(20);
+  const [zoom, setZoom] = useState(1);
+  const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [currentPath, setCurrentPath] = useState<number[] | null>(null);
+
+  // Local state for workspace-relative masks (B-space)
+  // This allows us to work UPRIGHT and AXIS-ALIGNED easily.
+  const [localMaskData, setLocalMaskData] = useState<MaskPath[]>([]);
+
+  // Initialize workspace masks from source masks
+  useEffect(() => {
+    if (!img) return;
+    const transformed = transformMaskData(maskData, transformation, "A2B");
+
+    // Default: if no mask exists, add a full-cover rectangle to reveal the whole image
+    if (!hasInitializedRef.current) {
+      if (transformed.length === 0) {
+        const w = transformation.width || img.width;
+        const h = transformation.height || img.height;
+        transformed.push({
+          tool: "rectangle",
+          mode: "add",
+          points: [0, 0, w, h],
+          brushSize: 0,
+        });
+        // If we just added the default "Full Reveal", subsequent tools should default to "New" mode
+        setMode("replace");
+      } else {
+        // If we have an existing manual mask, default to "Add"
+        setMode("add");
+      }
+      hasInitializedRef.current = true;
+    }
+
+    setLocalMaskData(transformed);
+  }, [img, maskData]);
+
+  // Auto-fit crop area to screen on open
+  useEffect(() => {
+    if (!img) return;
+    const screenW = window.innerWidth;
+    const screenH = window.innerHeight - 128;
+    const cropW = transformation.width || img.width;
+    const cropH = transformation.height || img.height;
+    const padding = 0.85;
+    const scale = Math.min(screenW / cropW, screenH / cropH) * padding;
+    setZoom(scale);
+    setStagePos({ x: screenW / 2, y: screenH / 2 });
+  }, [img, transformation.width, transformation.height]);
+
+  const MASK_OVERLAY_COLOR = "rgba(0, 0, 0, 0.8)";
+  const cropW = transformation.width || (img?.width ?? 0);
+  const cropH = transformation.height || (img?.height ?? 0);
+
+  const groupRef = useRef<any>(null);
+  const cutterRef = useRef<any>(null);
+
+  /**
+   * STENCIL ARCHITECTURE:
+   * We cache the cutter group to create an isolated "Reveal Pattern" (Add - Subtract).
+   * This is critical: if we applied subtractions directly to the shroud, they would
+   * simply erase the Gray overlay. By caching them, subtractive modes instead erase
+   * from the additive silhouette WITHIN the private buffer, which is then applied
+   * as a single holistic eraser to the shroud.
+   */
+  useEffect(() => {
+    if (cutterRef.current && img && localMaskData.length > 0) {
+      cutterRef.current.cache({
+        x: -20,
+        y: -20,
+        width: cropW + 40,
+        height: cropH + 40,
+      });
+    } else if (cutterRef.current) {
+      cutterRef.current.clearCache();
+    }
+  }, [localMaskData, img, cropW, cropH]);
+
+  // Interaction handlers (Now in B-space!)
+  const handleMouseDown = (_e: any) => {
+    if (!groupRef.current) return;
+    setIsDrawing(true);
+    const pos = groupRef.current.getRelativePointerPosition();
+    setCurrentPath([pos.x, pos.y]);
+  };
+
+  const handleMouseMove = (_e: any) => {
+    if (!isDrawing || !currentPath || !groupRef.current) return;
+    const pos = groupRef.current.getRelativePointerPosition();
+    if (tool === "brush" || tool === "lasso") {
+      setCurrentPath([...currentPath, pos.x, pos.y]);
+    } else {
+      setCurrentPath([currentPath[0], currentPath[1], pos.x, pos.y]);
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (!isDrawing || !currentPath || !groupRef.current) return;
+    setIsDrawing(false);
+
+    let finalPoints: number[] = [];
+    if (tool === "brush" || tool === "lasso") {
+      finalPoints = currentPath;
+    } else {
+      const [sx, sy, ex, ey] = currentPath;
+      const x = Math.min(sx, ex);
+      const y = Math.min(sy, ey);
+      const w = Math.abs(ex - sx);
+      const h = Math.abs(ey - sy);
+      finalPoints = [x, y, w, h];
+    }
+
+    const newPath: MaskPath = {
+      tool,
+      mode,
+      points: finalPoints,
+      brushSize: tool === "brush" ? brushSize : undefined,
+    };
+
+    // 1. Update local workspace state
+    const newLocalMask = mode === "replace" ? [newPath] : [...localMaskData, newPath];
+    setLocalMaskData(newLocalMask);
+
+    // 2. Transfrom back to A-space for storage
+    const backTransformed = transformMaskData(newLocalMask, transformation, "B2A");
+    onUpdateMask(backTransformed);
+    setCurrentPath(null);
+  };
+
+  const handleReset = () => {
+    if (window.confirm("Reset entire mask? This can't be undone.")) {
+      hasInitializedRef.current = false;
+      onUpdateMask([]);
+    }
+  };
+
+  const handleUndo = () => {
+    onUpdateMask(maskData.slice(0, -1));
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between border-b border-slate-700 bg-slate-900/50 p-2 backdrop-blur-md">
+        <div className="flex items-center gap-2">
+          {/* Tools */}
+          <ToolButton
+            active={tool === "brush"}
+            onClick={() => setTool("brush")}
+            icon={<Brush size={18} />}
+            label="Brush"
+          />
+          <ToolButton
+            active={tool === "lasso"}
+            onClick={() => setTool("lasso")}
+            icon={<MousePointer2 size={18} />}
+            label="Lasso"
+          />
+          <ToolButton
+            active={tool === "rectangle"}
+            onClick={() => setTool("rectangle")}
+            icon={<Square size={18} />}
+            label="Rect"
+          />
+          <ToolButton
+            active={tool === "ellipse"}
+            onClick={() => setTool("ellipse")}
+            icon={<Circle size={18} />}
+            label="Ellipse"
+          />
+          <div className="mx-2 h-6 w-px bg-slate-700" />
+
+          {/* Modes */}
+          <ModeButton
+            active={mode === "add"}
+            onClick={() => setMode("add")}
+            icon={<Plus size={16} />}
+            label="Add"
+            color="emerald"
+          />
+          <ModeButton
+            active={mode === "subtract"}
+            onClick={() => setMode("subtract")}
+            icon={<Minus size={16} />}
+            label="Subtract"
+            color="rose"
+          />
+          <ModeButton
+            active={mode === "replace"}
+            onClick={() => setMode("replace")}
+            icon={<Combine size={16} />}
+            label="New"
+            color="indigo"
+          />
+        </div>
+
+        <div className="flex items-center gap-3 pr-2">
+          {tool === "brush" && (
+            <div className="mr-4 flex items-center gap-2">
+              <span className="text-[10px] font-bold text-slate-500 uppercase">Brush Size</span>
+              <input
+                type="range"
+                min="5"
+                max="100"
+                value={brushSize}
+                onChange={(e) => setBrushSize(parseInt(e.target.value))}
+                className="w-24 accent-indigo-500"
+              />
+              <span className="w-6 font-mono text-xs tabular-nums">{brushSize}</span>
+            </div>
+          )}
+          <div className="flex items-center rounded-lg bg-slate-950 p-1">
+            <button
+              onClick={() => setZoom((z) => Math.max(0.1, z - 0.1))}
+              className="Transition-colors p-1 hover:text-indigo-400"
+            >
+              <ZoomOut size={16} />
+            </button>
+            <span className="w-10 text-center font-mono text-[10px]">
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              onClick={() => setZoom((z) => Math.min(10, z + 0.1))}
+              className="Transition-colors p-1 hover:text-indigo-400"
+            >
+              <ZoomIn size={16} />
+            </button>
+          </div>
+          <ToolButton onClick={handleUndo} icon={<Undo2 size={18} />} label="Undo" />
+          <ToolButton
+            onClick={handleReset}
+            icon={<Trash2 size={18} />}
+            label="Reset All"
+            color="rose"
+          />
+        </div>
+      </div>
+
+      {/* Canvas Area */}
+      <div className="relative flex-1 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px]">
+        {img && (
+          <Stage
+            ref={stageRef}
+            width={window.innerWidth}
+            height={window.innerHeight - 128}
+            x={stagePos.x}
+            y={stagePos.y}
+            scaleX={zoom}
+            scaleY={zoom}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            className="cursor-crosshair"
+          >
+            <Layer>
+              <Group clip={{ x: -cropW / 2, y: -cropH / 2, width: cropW, height: cropH }}>
+                <Group
+                  rotation={-transformation.rotation}
+                  offsetX={(transformation.x || 0) + cropW / 2}
+                  offsetY={(transformation.y || 0) + cropH / 2}
+                >
+                  <KonvaImage image={img} />
+                </Group>
+              </Group>
+            </Layer>
+
+            <Layer>
+              <Group
+                // 2. Interaction Layer (Reveal Area)
+                ref={groupRef}
+                x={-cropW / 2}
+                y={-cropH / 2}
+                clip={{ x: 0, y: 0, width: cropW, height: cropH }}
+              >
+                {/* Gray Overlay Shroud */}
+                <Rect x={0} y={0} width={cropW} height={cropH} fill={MASK_OVERLAY_COLOR} />
+
+                {/*
+                   1. Permanent Cutter Stencil (Cached)
+                   Isolated Add-Minus-Subtract silohette applied as a single eraser to the shroud.
+                */}
+                <Group ref={cutterRef} globalCompositeOperation="destination-out">
+                  {localMaskData.map((path, i) => (
+                    <MaskShape key={i} path={path} isPreview={false} />
+                  ))}
+                </Group>
+
+                {/*
+                   2. Live Drawing Preview (Flicker-Free masking)
+                   If adding: Erase from shroud (destination-out)
+                   If subtracting: Patch the shroud back (source-over with shroud color)
+                */}
+                {isDrawing && currentPath && (
+                  <MaskShape
+                    path={{ tool, mode, points: currentPath, brushSize }}
+                    isPreview={true}
+                    compositeOverride={mode === "subtract" ? "source-over" : "destination-out"}
+                    fillOverride={mode === "subtract" ? MASK_OVERLAY_COLOR : "white"}
+                    strokeOverride={mode === "subtract" ? MASK_OVERLAY_COLOR : "white"}
+                  />
+                )}
+
+                {/*
+                   3. Surgical Stroke Preview (Top Layer)
+                   Drawn strictly on top to ensure user sees the outline even 
+                   if they are drawing over already revealed areas.
+                */}
+                {isDrawing &&
+                  currentPath &&
+                  (tool === "lasso" || tool === "rectangle" || tool === "ellipse") && (
+                    <MaskShape
+                      path={{ tool, mode, points: currentPath, brushSize }}
+                      isPreview={true}
+                      compositeOverride="source-over"
+                      fillOverride="transparent"
+                      strokeOverride="#818cf8"
+                      isGeometricOutlineOnly={true}
+                    />
+                  )}
+              </Group>
+            </Layer>
+          </Stage>
+        )}
+      </div>
+    </div>
+  );
+};
+
+function MaskShape({
+  path,
+  isPreview,
+  fillOverride,
+  strokeOverride,
+  compositeOverride,
+  isGeometricOutlineOnly = false,
+}: any) {
+  const isGeometricPreview = isPreview && (path.tool !== "brush" || isGeometricOutlineOnly);
+  const baseStrokeColor = isGeometricPreview
+    ? "#818cf8"
+    : path.tool === "brush"
+      ? "white"
+      : undefined;
+
+  const commonProps = {
+    fill: fillOverride || "white",
+    stroke: strokeOverride || baseStrokeColor,
+    strokeWidth: path.tool === "brush" ? path.brushSize : isGeometricPreview ? 5 : undefined,
+    dash: isGeometricPreview ? [15, 7] : undefined,
+    opacity: isPreview ? 0.6 : 1,
+    globalCompositeOperation:
+      compositeOverride || (path.mode === "subtract" ? "destination-out" : "source-over"),
+  };
+
+  if (path.tool === "brush" || path.tool === "lasso") {
+    return (
+      <Line
+        points={path.points}
+        closed={path.tool === "lasso"}
+        {...commonProps}
+        fill={path.tool === "brush" ? undefined : commonProps.fill}
+        lineCap="round"
+        lineJoin="round"
+      />
+    );
+  }
+
+  let x = 0,
+    y = 0,
+    w = 0,
+    h = 0;
+  if (path.tool === "rectangle" || path.tool === "ellipse") {
+    if (isPreview && path.points && path.points.length >= 4) {
+      const [sx, sy, ex, ey] = path.points;
+      x = Math.min(sx, ex);
+      y = Math.min(sy, ey);
+      w = Math.abs(ex - sx);
+      h = Math.abs(ey - sy);
+    } else if (path.points && path.points.length >= 4) {
+      [x, y, w, h] = path.points;
+    }
+  }
+
+  if (path.tool === "rectangle") return <Rect x={x} y={y} width={w} height={h} {...commonProps} />;
+
+  if (path.tool === "ellipse") {
+    const rx = Math.max(0, w / 2);
+    const ry = Math.max(0, h / 2);
+    return <Ellipse x={x + rx} y={y + ry} radiusX={rx} radiusY={ry} {...commonProps} />;
+  }
+
+  return null;
+}
+
+function ToolButton({ active, onClick, icon, label, color = "indigo" }: any) {
+  const colors: any = {
+    indigo: active
+      ? "bg-indigo-600 text-white"
+      : "hover:bg-slate-700 text-slate-400 hover:text-white",
+    rose: active ? "bg-rose-600 text-white" : "hover:bg-rose-900/40 text-rose-400 hover:text-white",
+  };
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition-all active:scale-95 ${colors[color]}`}
+    >
+      {icon}
+      <span className="hidden sm:inline">{label}</span>
+    </button>
+  );
+}
+
+function ModeButton({ active, onClick, icon, label, color }: any) {
+  const colors: any = {
+    emerald: active
+      ? "bg-emerald-600 text-white ring-2 ring-emerald-500/20"
+      : "bg-slate-950/40 text-emerald-500 hover:bg-emerald-900/30",
+    rose: active
+      ? "bg-rose-600 text-white ring-2 ring-rose-500/20"
+      : "bg-slate-950/40 text-rose-500 hover:bg-rose-900/30",
+    indigo: active
+      ? "bg-indigo-600 text-white ring-2 ring-indigo-500/20"
+      : "bg-slate-950/40 text-indigo-500 hover:bg-emerald-900/30",
+  };
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase transition-all active:scale-95 ${colors[color]}`}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}

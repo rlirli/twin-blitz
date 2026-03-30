@@ -5,9 +5,14 @@ import React, { useRef, useState } from "react";
 import * as LucideIcons from "lucide-react";
 
 import { TOTAL_SYMBOLS } from "@/lib/constants";
-import { lucideIconToImageUrl, compressImage } from "@/lib/utils/image-processing";
+import {
+  lucideIconToImageUrl,
+  compressImage,
+  normalizeSourceImage,
+} from "@/lib/utils/image-processing";
 import { useSymbolStore } from "@/store/use-symbol-store";
 
+import { ImageEditor } from "../image-editor/image-editor";
 import { BulkErrorDialog, BulkErrorData } from "./bulk-error-dialog";
 import { GridHeader } from "./grid-header";
 import { SymbolSlot } from "./symbol-slot";
@@ -24,25 +29,31 @@ const LUCIDE_ICON_NAMES = Object.keys(LucideIcons)
   .slice(0, TOTAL_SYMBOLS);
 
 export const SymbolGrid: React.FC = () => {
-  const { symbols, setSymbol, setBulkSymbols, removeSymbol, clearAll } = useSymbolStore();
+  const { symbols, setSymbolWithSource, removeSymbol, clearAll } = useSymbolStore();
   const bulkInputRef = useRef<HTMLInputElement>(null);
   const [bulkError, setBulkError] = useState<BulkErrorData | null>(null);
   const [isBulkLoading, setIsBulkLoading] = useState(false);
+  const [editingSlotId, setEditingSlotId] = useState<number | null>(null);
 
   const handleFileChange = async (id: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
-      const compressed = await compressImage(file);
-      setSymbol(id, compressed);
+      const sourceUrl = await normalizeSourceImage(file);
+      const previewUrl = await compressImage(file);
+      await setSymbolWithSource(id, previewUrl, sourceUrl);
     } catch (err: any) {
       if (err.name === "QuotaExceededError" || err.message?.includes("quota")) {
         setBulkError({ type: "quota" });
       } else {
+        // Fallback for non-WebP browsers or other issues
         const reader = new FileReader();
-        reader.onload = (event) => {
-          if (event.target?.result) setSymbol(id, event.target.result as string);
+        reader.onload = async (event) => {
+          if (event.target?.result) {
+            const dataUrl = event.target.result as string;
+            await setSymbolWithSource(id, dataUrl, dataUrl);
+          }
         };
         reader.readAsDataURL(file);
       }
@@ -64,15 +75,11 @@ export const SymbolGrid: React.FC = () => {
 
     setIsBulkLoading(true);
     try {
-      const results = await Promise.allSettled(files.map((file) => compressImage(file)));
-      const updates = results
-        .map((result, i) =>
-          result.status === "fulfilled" ? { id: emptySlots[i].id, url: result.value } : null,
-        )
-        .filter((u): u is { id: number; url: string } => u !== null);
-
-      if (updates.length > 0) {
-        setBulkSymbols(updates);
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const sourceUrl = await normalizeSourceImage(file);
+        const previewUrl = await compressImage(file);
+        await setSymbolWithSource(emptySlots[i].id, previewUrl, sourceUrl);
       }
     } catch (err: any) {
       if (err.name === "QuotaExceededError" || err.message?.includes("quota")) {
@@ -87,15 +94,12 @@ export const SymbolGrid: React.FC = () => {
   const loadDefaults = async () => {
     setIsBulkLoading(true);
     try {
-      const results = await Promise.allSettled(
-        LUCIDE_ICON_NAMES.map((name) => lucideIconToImageUrl(LucideIcons as any, name)),
-      );
-      const updates = results
-        .map((result, index) =>
-          result.status === "fulfilled" ? { id: index, url: result.value } : null,
-        )
-        .filter((u): u is { id: number; url: string } => u !== null);
-      if (updates.length > 0) setBulkSymbols(updates);
+      for (let i = 0; i < LUCIDE_ICON_NAMES.length; i++) {
+        const name = LUCIDE_ICON_NAMES[i];
+        const imageUrl = await lucideIconToImageUrl(LucideIcons as any, name);
+        // For icons, preview and source are the same for now
+        await setSymbolWithSource(i, imageUrl, imageUrl);
+      }
     } finally {
       setIsBulkLoading(false);
     }
@@ -106,6 +110,10 @@ export const SymbolGrid: React.FC = () => {
   return (
     <div className="bg-card border-border mb-10 rounded-2xl border px-8 py-6 shadow-[0_4px_24px_rgba(0,0,0,0.05)]">
       <BulkErrorDialog error={bulkError} onClose={() => setBulkError(null)} />
+
+      {editingSlotId !== null && (
+        <ImageEditor slotId={editingSlotId} onClose={() => setEditingSlotId(null)} />
+      )}
 
       <GridHeader
         onBulkUpload={handleBulkUpload}
@@ -123,6 +131,7 @@ export const SymbolGrid: React.FC = () => {
             symbol={symbol}
             onFileChange={handleFileChange}
             onRemove={removeSymbol}
+            onEdit={(id) => setEditingSlotId(id)}
           />
         ))}
       </div>
