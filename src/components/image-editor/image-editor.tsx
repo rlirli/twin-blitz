@@ -76,39 +76,39 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ slotId, onClose }) => 
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-slate-900 text-white select-none">
       {/* Header */}
-      <header className="flex h-16 items-center justify-between border-b border-slate-700 bg-slate-800 px-4 shadow-lg">
-        <div className="flex items-center gap-4">
+      <header className="flex h-14 items-center justify-between border-b border-slate-800 bg-slate-900 px-3 shadow-md transition-all sm:h-16 sm:px-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           <button
             onClick={onClose}
-            className="rounded-full p-2 transition-colors hover:bg-slate-700"
+            className="rounded-full p-2 transition-colors hover:bg-slate-800 active:bg-slate-700"
           >
-            <X size={24} />
+            <X size={20} className="sm:h-6 sm:w-6" />
           </button>
-          <h2 className="text-lg font-bold tracking-tight">Professional Editor</h2>
+          <h2 className="hidden text-base font-black tracking-tight sm:block lg:text-lg">EDITOR</h2>
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex rounded-lg bg-slate-950 p-1">
+        <div className="flex rounded-xl bg-slate-950/50 p-1 ring-1 ring-white/5">
           <button
             onClick={() => setActiveTab("mask")}
-            className={`flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-medium transition-all ${
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-black uppercase transition-all sm:gap-2 sm:px-5 sm:py-2 sm:text-xs ${
               activeTab === "mask"
-                ? "bg-indigo-600 text-white shadow-sm"
+                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20"
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            <Scissors size={16} />
+            <Scissors size={14} className="sm:h-4 sm:w-4" />
             <span>Mask</span>
           </button>
           <button
             onClick={() => setActiveTab("crop")}
-            className={`flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-medium transition-all ${
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-black uppercase transition-all sm:gap-2 sm:px-5 sm:py-2 sm:text-xs ${
               activeTab === "crop"
-                ? "bg-indigo-600 text-white shadow-sm"
+                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20"
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            <CropIcon size={16} />
+            <CropIcon size={14} className="sm:h-4 sm:w-4" />
             <span>Crop</span>
           </button>
         </div>
@@ -116,13 +116,13 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ slotId, onClose }) => 
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-2 font-bold text-white shadow-md transition-all hover:bg-emerald-500 hover:shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-black text-white uppercase shadow-lg transition-all hover:bg-emerald-500 hover:shadow-emerald-500/20 active:scale-95 disabled:opacity-50 sm:gap-2 sm:px-6 sm:py-2 sm:text-sm"
         >
           {isSaving ? (
-            "Saving..."
+            "..."
           ) : (
             <>
-              <Check size={20} />
+              <Check size={16} className="sm:h-5 sm:w-5" />
               <span>Done</span>
             </>
           )}

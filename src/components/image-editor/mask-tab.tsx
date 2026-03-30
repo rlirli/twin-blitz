@@ -13,6 +13,7 @@ import {
   Trash2,
   ZoomIn,
   ZoomOut,
+  Maximize,
 } from "lucide-react";
 import { Stage, Layer, Image as KonvaImage, Rect, Group, Line, Ellipse } from "react-konva";
 import useImage from "use-image";
@@ -178,39 +179,68 @@ export const MaskTab: React.FC<MaskTabProps> = ({
     onUpdateMask(maskData.slice(0, -1));
   };
 
+  const resetZoom = () => {
+    if (!img) return;
+    const screenW = window.innerWidth;
+    const screenH = window.innerHeight - 64;
+    const cropW = transformation.width || img.width;
+    const cropH = transformation.height || img.height;
+    const padding = 0.85;
+    const scale = Math.min(screenW / cropW, screenH / cropH) * padding;
+    setZoom(scale);
+    setStagePos({ x: screenW / 2, y: screenH / 2 });
+  };
+
   return (
-    <div className="flex h-full flex-col">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between border-b border-slate-700 bg-slate-900/50 p-2 backdrop-blur-md">
-        <div className="flex items-center gap-2">
-          {/* Tools */}
+    <div className="relative flex h-full flex-col overflow-hidden">
+      {/* 1. Top Context Bar (Floating) */}
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+        <div className="flex items-center rounded-2xl bg-slate-900/80 p-1.5 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl">
+          <ActionButton onClick={handleUndo} icon={<Undo2 size={18} />} />
+          <div className="mx-1 h-4 w-px bg-slate-700" />
+          <ActionButton
+            onClick={handleReset}
+            icon={<Trash2 size={18} />}
+            color="rose"
+            title="Reset All"
+          />
+        </div>
+      </div>
+
+      {/* 2. Side Tool Rail (Floating Left) */}
+      <div className="absolute top-1/2 left-4 z-10 -translate-y-1/2 sm:left-6">
+        <div className="flex flex-col gap-2 rounded-2xl bg-slate-900/80 p-1.5 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl">
           <ToolButton
             active={tool === "brush"}
             onClick={() => setTool("brush")}
-            icon={<Brush size={18} />}
+            icon={<Brush size={20} />}
             label="Brush"
           />
           <ToolButton
             active={tool === "lasso"}
             onClick={() => setTool("lasso")}
-            icon={<MousePointer2 size={18} />}
+            icon={<MousePointer2 size={20} />}
             label="Lasso"
           />
           <ToolButton
             active={tool === "rectangle"}
             onClick={() => setTool("rectangle")}
-            icon={<Square size={18} />}
+            icon={<Square size={20} />}
             label="Rect"
           />
           <ToolButton
             active={tool === "ellipse"}
             onClick={() => setTool("ellipse")}
-            icon={<Circle size={18} />}
-            label="Ellipse"
+            icon={<Circle size={20} />}
+            label="Circle"
           />
-          <div className="mx-2 h-6 w-px bg-slate-700" />
+        </div>
+      </div>
 
-          {/* Modes */}
+      {/* 3. Bottom Control Center (Floating Center) */}
+      <div className="absolute bottom-6 left-1/2 z-10 flex w-[90%] max-w-lg -translate-x-1/2 flex-col items-center gap-3 sm:w-auto">
+        {/* Mode Switcher */}
+        <div className="flex w-full items-center justify-center rounded-2xl bg-slate-900/80 p-1.5 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl sm:w-auto">
           <ModeButton
             active={mode === "add"}
             onClick={() => setMode("add")}
@@ -222,7 +252,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
             active={mode === "subtract"}
             onClick={() => setMode("subtract")}
             icon={<Minus size={16} />}
-            label="Subtract"
+            label="Sub"
             color="rose"
           />
           <ModeButton
@@ -234,45 +264,54 @@ export const MaskTab: React.FC<MaskTabProps> = ({
           />
         </div>
 
-        <div className="flex items-center gap-3 pr-2">
+        {/* Brush & Zoom Footer */}
+        <div className="flex w-full items-center gap-4 rounded-2xl bg-slate-950/90 px-4 py-2.5 shadow-2xl ring-1 ring-white/10 backdrop-blur-2xl sm:w-auto">
           {tool === "brush" && (
-            <div className="mr-4 flex items-center gap-2">
-              <span className="text-[10px] font-bold text-slate-500 uppercase">Brush Size</span>
+            <div className="flex flex-1 items-center gap-3 sm:min-w-[180px] sm:flex-initial">
+              <span className="shrink-0 text-[10px] font-black tracking-tighter text-slate-500 uppercase">
+                Size
+              </span>
               <input
                 type="range"
                 min="5"
                 max="100"
                 value={brushSize}
                 onChange={(e) => setBrushSize(parseInt(e.target.value))}
-                className="w-24 accent-indigo-500"
+                className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-slate-800 accent-indigo-500 transition-all hover:bg-slate-700"
               />
-              <span className="w-6 font-mono text-xs tabular-nums">{brushSize}</span>
+              <span className="w-5 text-right font-mono text-[10px] font-bold text-indigo-400">
+                {brushSize}
+              </span>
+              <div className="ml-2 hidden h-4 w-px bg-slate-800 sm:block" />
             </div>
           )}
-          <div className="flex items-center rounded-lg bg-slate-950 p-1">
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={resetZoom}
+              className="rounded-lg p-1.5 transition-colors hover:bg-slate-800 hover:text-indigo-400"
+              title="Fit to Screen"
+            >
+              <Maximize size={15} />
+            </button>
             <button
               onClick={() => setZoom((z) => Math.max(0.1, z - 0.1))}
-              className="Transition-colors p-1 hover:text-indigo-400"
+              className="rounded-lg p-1.5 transition-colors hover:bg-slate-800 hover:text-indigo-400"
+              title="Zoom Out"
             >
               <ZoomOut size={16} />
             </button>
-            <span className="w-10 text-center font-mono text-[10px]">
+            <span className="min-w-[40px] text-center font-mono text-[10px] font-black text-slate-400">
               {Math.round(zoom * 100)}%
             </span>
             <button
               onClick={() => setZoom((z) => Math.min(10, z + 0.1))}
-              className="Transition-colors p-1 hover:text-indigo-400"
+              className="rounded-lg p-1.5 transition-colors hover:bg-slate-800 hover:text-indigo-400"
+              title="Zoom In"
             >
               <ZoomIn size={16} />
             </button>
           </div>
-          <ToolButton onClick={handleUndo} icon={<Undo2 size={18} />} label="Undo" />
-          <ToolButton
-            onClick={handleReset}
-            icon={<Trash2 size={18} />}
-            label="Reset All"
-            color="rose"
-          />
         </div>
       </div>
 
@@ -282,7 +321,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
           <Stage
             ref={stageRef}
             width={window.innerWidth}
-            height={window.innerHeight - 128}
+            height={window.innerHeight - 64} // Only subtract header height
             x={stagePos.x}
             y={stagePos.y}
             scaleX={zoom}
@@ -431,20 +470,36 @@ function MaskShape({
   return null;
 }
 
-function ToolButton({ active, onClick, icon, label, color = "indigo" }: any) {
+function ActionButton({ onClick, icon, color = "indigo", title }: any) {
   const colors: any = {
-    indigo: active
-      ? "bg-indigo-600 text-white"
-      : "hover:bg-slate-700 text-slate-400 hover:text-white",
-    rose: active ? "bg-rose-600 text-white" : "hover:bg-rose-900/40 text-rose-400 hover:text-white",
+    indigo: "hover:bg-indigo-500/20 text-slate-300 hover:text-indigo-400",
+    rose: "hover:bg-rose-500/20 text-slate-300 hover:text-rose-400",
   };
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition-all active:scale-95 ${colors[color]}`}
+      title={title}
+      className={`rounded-xl p-2.5 transition-all active:scale-90 ${colors[color]}`}
     >
       {icon}
-      <span className="hidden sm:inline">{label}</span>
+    </button>
+  );
+}
+
+function ToolButton({ active, onClick, icon, label }: any) {
+  return (
+    <button
+      onClick={onClick}
+      className={`group relative flex items-center justify-center rounded-xl p-3 transition-all ${
+        active
+          ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/40"
+          : "text-slate-400 hover:bg-slate-800 hover:text-white"
+      }`}
+    >
+      {icon}
+      <span className="group-hover:blur-0 pointer-events-none absolute left-full ml-3 scale-90 rounded-md bg-slate-800 px-2 py-1 text-[10px] font-bold text-white opacity-0 blur-sm transition-all group-hover:scale-100 group-hover:opacity-100">
+        {label}
+      </span>
     </button>
   );
 }
@@ -452,19 +507,19 @@ function ToolButton({ active, onClick, icon, label, color = "indigo" }: any) {
 function ModeButton({ active, onClick, icon, label, color }: any) {
   const colors: any = {
     emerald: active
-      ? "bg-emerald-600 text-white ring-2 ring-emerald-500/20"
-      : "bg-slate-950/40 text-emerald-500 hover:bg-emerald-900/30",
+      ? "bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
+      : "text-emerald-500 hover:bg-emerald-500/10",
     rose: active
-      ? "bg-rose-600 text-white ring-2 ring-rose-500/20"
-      : "bg-slate-950/40 text-rose-500 hover:bg-rose-900/30",
+      ? "bg-rose-600 text-white shadow-lg shadow-rose-500/20"
+      : "text-rose-500 hover:bg-rose-500/10",
     indigo: active
-      ? "bg-indigo-600 text-white ring-2 ring-indigo-500/20"
-      : "bg-slate-950/40 text-indigo-500 hover:bg-emerald-900/30",
+      ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20"
+      : "text-indigo-500 hover:bg-indigo-500/10",
   };
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase transition-all active:scale-95 ${colors[color]}`}
+      className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2 text-[10px] font-black uppercase transition-all active:scale-95 sm:flex-none ${colors[color]}`}
     >
       {icon}
       <span>{label}</span>

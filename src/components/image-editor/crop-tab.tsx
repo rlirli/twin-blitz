@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 
-import { RotateCcw, RotateCw, Maximize } from "lucide-react";
+import { RotateCcw, RotateCw, Maximize, ZoomIn, ZoomOut } from "lucide-react";
 import { Stage, Layer, Image as KonvaImage, Rect, Transformer, Group } from "react-konva";
 import useImage from "use-image";
 
@@ -141,37 +141,79 @@ export const CropTab: React.FC<CropTabProps> = ({
     onUpdateTransformation(newTransform);
   };
 
+  const resetZoom = () => {
+    if (!img) return;
+    const stageW = window.innerWidth;
+    const stageH = window.innerHeight - 64;
+    const scale = Math.min(stageW / img.width, stageH / img.height) * 0.85;
+    setZoom(scale);
+    setStagePos({
+      x: stageW / 2 - (img.width / 2) * scale,
+      y: stageH / 2 - (img.height / 2) * scale,
+    });
+  };
+
   return (
-    <div className="flex h-full flex-col">
-      {/* Tool Header */}
-      <div className="flex items-center justify-between border-b border-slate-700 bg-slate-900/50 p-2 backdrop-blur-md">
-        <div className="flex items-center gap-4 px-2 text-slate-400">
-          <span className="text-[10px] font-bold tracking-widest uppercase">Image Orientation</span>
-          <div className="flex items-center gap-2">
+    <div className="relative flex h-full flex-col overflow-hidden">
+      {/* 1. Top Action Bar (Floating) */}
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+        <button
+          onClick={handleReset}
+          className="flex items-center gap-2 rounded-2xl bg-slate-900/80 px-4 py-2.5 text-[10px] font-black text-slate-300 uppercase shadow-2xl ring-1 ring-white/10 backdrop-blur-xl transition-all hover:bg-slate-800 hover:text-white active:scale-95 sm:text-xs"
+        >
+          <Maximize size={16} />
+          <span>Reset</span>
+        </button>
+      </div>
+
+      {/* 2. Bottom Control Rail (Floating Center) */}
+      <div className="absolute bottom-6 left-1/2 z-10 flex w-[85%] max-w-sm -translate-x-1/2 flex-col items-center gap-3 sm:w-auto">
+        <div className="flex w-full items-center justify-between gap-4 rounded-2xl bg-slate-900/80 p-2 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl sm:w-auto sm:justify-center">
+          <div className="flex items-center gap-1 sm:gap-2">
             <button
               onClick={() => handle90Rotate(-90)}
-              className="group flex items-center gap-2 rounded-lg bg-slate-800 px-3 py-1.5 text-[10px] font-bold transition-all hover:bg-slate-700 hover:text-indigo-400 active:scale-95"
+              className="group flex items-center gap-2 rounded-xl bg-slate-950/40 px-3 py-2 text-[10px] font-black uppercase transition-all hover:bg-indigo-500/20 hover:text-indigo-400 active:scale-95"
             >
-              <RotateCcw size={14} className="group-hover:-rotate-45" />
-              <span>-90°</span>
+              <RotateCcw size={16} className="transition-transform group-hover:-rotate-45" />
+              <span className="hidden sm:inline">-90°</span>
             </button>
             <button
               onClick={() => handle90Rotate(90)}
-              className="group flex items-center gap-2 rounded-lg bg-slate-800 px-3 py-1.5 text-[10px] font-bold transition-all hover:bg-slate-700 hover:text-indigo-400 active:scale-95"
+              className="group flex items-center gap-2 rounded-xl bg-slate-950/40 px-3 py-2 text-[10px] font-black uppercase transition-all hover:bg-indigo-500/20 hover:text-indigo-400 active:scale-95"
             >
-              <RotateCw size={14} className="group-hover:rotate-45" />
-              <span>+90°</span>
+              <RotateCw size={16} className="transition-transform group-hover:rotate-45" />
+              <span className="hidden sm:inline">+90°</span>
+            </button>
+          </div>
+          <div className="mx-1 h-6 w-px bg-slate-700" />
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={resetZoom}
+              className="rounded-lg p-2 transition-colors hover:bg-slate-800 hover:text-indigo-400"
+              title="Fit to Screen"
+            >
+              <Maximize size={15} />
+            </button>
+            <button
+              onClick={() => setZoom((z) => Math.max(0.1, z - 0.1))}
+              className="rounded-lg p-2 transition-colors hover:bg-slate-800 hover:text-indigo-400"
+              title="Zoom Out"
+            >
+              <ZoomOut size={16} />
+            </button>
+            <span className="min-w-[40px] text-center font-mono text-[10px] font-black text-slate-400">
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              onClick={() => setZoom((z) => Math.min(10, z + 0.1))}
+              className="rounded-lg p-2 transition-colors hover:bg-slate-800 hover:text-indigo-400"
+              title="Zoom In"
+            >
+              <ZoomIn size={16} />
             </button>
           </div>
         </div>
-
-        <button
-          onClick={handleReset}
-          className="flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-xs font-bold text-slate-300 transition-all hover:bg-slate-700 hover:text-white active:scale-95"
-        >
-          <Maximize size={16} />
-          <span>Reset Transformation</span>
-        </button>
       </div>
 
       {/* Workspace */}
@@ -179,7 +221,7 @@ export const CropTab: React.FC<CropTabProps> = ({
         {img && img.width > 0 && (
           <Stage
             width={window.innerWidth}
-            height={window.innerHeight - 128}
+            height={window.innerHeight - 64}
             x={stagePos.x}
             y={stagePos.y}
             scaleX={zoom}
@@ -246,23 +288,6 @@ export const CropTab: React.FC<CropTabProps> = ({
             </Layer>
           </Stage>
         )}
-      </div>
-
-      {/* Zoom Control */}
-      <div className="absolute right-4 bottom-4 flex items-center rounded-lg border border-slate-700 bg-slate-900/80 p-1 shadow-xl backdrop-blur-md">
-        <button
-          onClick={() => setZoom((z) => z - 0.1)}
-          className="p-2 transition-colors hover:text-indigo-400"
-        >
-          <Maximize size={16} className="rotate-45" />
-        </button>
-        <span className="w-10 text-center font-mono text-[10px]">{Math.round(zoom * 100)}%</span>
-        <button
-          onClick={() => setZoom((z) => z + 0.1)}
-          className="p-2 transition-colors hover:text-indigo-400"
-        >
-          <Maximize size={16} />
-        </button>
       </div>
     </div>
   );
