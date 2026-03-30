@@ -1,6 +1,6 @@
 import { useRef, useCallback, useState } from "react";
 
-export function usePinchZoom(
+export function useMultiTouch(
   zoom: number,
   setZoom: React.Dispatch<React.SetStateAction<number>>,
   stagePos: { x: number; y: number },
@@ -9,16 +9,17 @@ export function usePinchZoom(
 ) {
   const lastCenterRef = useRef<{ x: number; y: number } | null>(null);
   const lastDistRef = useRef<number>(0);
-  const [isPinching, setIsPinching] = useState(false);
+  const [isMultiTouching, setIsMultiTouching] = useState(false);
 
   const onTouchStart = useCallback(
     (e: any) => {
+      // e.evt.touches refers to screen touches.
       if (e.evt.touches?.length === 2) {
         if (cancelInteraction) {
           cancelInteraction();
         }
 
-        setIsPinching(true);
+        setIsMultiTouching(true);
 
         const touch1 = e.evt.touches[0];
         const touch2 = e.evt.touches[1];
@@ -52,16 +53,19 @@ export function usePinchZoom(
           touch2.clientY - touch1.clientY,
         );
 
-        // We want to zoom around the center of the pinch!
+        // Zoom scale ratio between this frame and last frame
         const scaleBy = newDist / lastDistRef.current;
-        // Clamp zoom between 0.05 and 50 to prevent crazy values
+        // Clamp zoom between 0.05 and 50
         const newZoom = Math.min(Math.max(0.05, zoom * scaleBy), 50);
 
+        // Find the image coordinate that was beneath the old center point
         const pointTo = {
-          x: (newCenter.x - stagePos.x) / zoom,
-          y: (newCenter.y - stagePos.y) / zoom,
+          x: (lastCenterRef.current.x - stagePos.x) / zoom,
+          y: (lastCenterRef.current.y - stagePos.y) / zoom,
         };
 
+        // Align the old point in the image perfectly under the new center point,
+        // factoring in the new scaled dimensions
         const newPos = {
           x: newCenter.x - pointTo.x * newZoom,
           y: newCenter.y - pointTo.y * newZoom,
@@ -81,9 +85,9 @@ export function usePinchZoom(
     if (!e.evt.touches || e.evt.touches.length < 2) {
       lastCenterRef.current = null;
       lastDistRef.current = 0;
-      setIsPinching(false);
+      setIsMultiTouching(false);
     }
   }, []);
 
-  return { onTouchStart, onTouchMove, onTouchEnd, isPinching };
+  return { onTouchStart, onTouchMove, onTouchEnd, isMultiTouching };
 }

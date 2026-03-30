@@ -6,7 +6,7 @@ import { RotateCcw, RotateCw, Maximize, ZoomIn, ZoomOut } from "lucide-react";
 import { Stage, Layer, Image as KonvaImage, Rect, Transformer, Group } from "react-konva";
 import useImage from "use-image";
 
-import { usePinchZoom } from "@/components/image-editor/use-pinch-zoom";
+import { useMultiTouch } from "@/components/image-editor/use-multi-touch";
 import { Transformation } from "@/lib/utils/image-processing";
 
 interface CropTabProps {
@@ -154,7 +154,7 @@ export const CropTab: React.FC<CropTabProps> = ({
     });
   };
 
-  const { onTouchStart, onTouchMove, onTouchEnd, isPinching } = usePinchZoom(
+  const { onTouchStart, onTouchMove, onTouchEnd, isMultiTouching } = useMultiTouch(
     zoom,
     setZoom,
     stagePos,
@@ -271,7 +271,7 @@ export const CropTab: React.FC<CropTabProps> = ({
                   opacity={0.4}
                   stroke="#6366f1"
                   strokeWidth={2}
-                  draggable={!isPinching}
+                  draggable={!isMultiTouching}
                   onDragEnd={handleDragEnd}
                   onTransformEnd={handleTransformEnd}
                 />

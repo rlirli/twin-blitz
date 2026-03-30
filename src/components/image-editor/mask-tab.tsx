@@ -18,7 +18,7 @@ import {
 import { Stage, Layer, Image as KonvaImage, Rect, Group, Line, Ellipse } from "react-konva";
 import useImage from "use-image";
 
-import { usePinchZoom } from "@/components/image-editor/use-pinch-zoom";
+import { useMultiTouch } from "@/components/image-editor/use-multi-touch";
 import { Transformation, MaskPath, transformMaskData } from "@/lib/utils/image-processing";
 
 interface MaskTabProps {
@@ -207,7 +207,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
     setCurrentPath(null);
   };
 
-  const { onTouchStart, onTouchMove, onTouchEnd } = usePinchZoom(
+  const { onTouchStart, onTouchMove, onTouchEnd } = useMultiTouch(
     zoom,
     setZoom,
     stagePos,
