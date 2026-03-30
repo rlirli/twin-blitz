@@ -97,11 +97,13 @@ export const SymbolGrid: React.FC = () => {
   const loadDefaults = async () => {
     setIsBulkLoading(true);
     try {
-      for (let i = 0; i < LUCIDE_ICON_NAMES.length; i++) {
-        const name = LUCIDE_ICON_NAMES[i];
+      const emptySlots = symbols.filter((s) => s.url === null);
+      for (const slot of emptySlots) {
+        const name = LUCIDE_ICON_NAMES[slot.id];
+        if (!name) continue;
         const imageUrl = await lucideIconToImageUrl(LucideIcons as any, name);
         // For icons, preview and source are the same for now
-        await setSymbolWithSource(i, imageUrl, imageUrl);
+        await setSymbolWithSource(slot.id, imageUrl, imageUrl);
       }
     } finally {
       setIsBulkLoading(false);
