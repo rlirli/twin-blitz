@@ -5,6 +5,7 @@ import React, { useRef, useState } from "react";
 import * as LucideIcons from "lucide-react";
 
 import { TOTAL_SYMBOLS } from "@/lib/constants";
+import { cn } from "@/lib/utils/cn";
 import {
   lucideIconToImageUrl,
   compressImage,
@@ -35,6 +36,7 @@ export const SymbolGrid: React.FC = () => {
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [editingSlotId, setEditingSlotId] = useState<number | null>(null);
   const [focusedSlotId, setFocusedSlotId] = useState<number | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const handleFileChange = async (id: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -113,7 +115,7 @@ export const SymbolGrid: React.FC = () => {
   const emptyCount = symbols.filter((s) => s.url === null).length;
 
   return (
-    <div className="bg-card border-border mb-10 rounded-2xl border px-8 py-6 shadow-[0_4px_24px_rgba(0,0,0,0.05)]">
+    <div className="bg-card border-border mb-10 rounded-2xl border pt-6 pb-1 shadow-[0_4px_24px_rgba(0,0,0,0.05)]">
       <BulkErrorDialog error={bulkError} onClose={() => setBulkError(null)} />
 
       {editingSlotId !== null && (
@@ -127,23 +129,60 @@ export const SymbolGrid: React.FC = () => {
         isBulkLoading={isBulkLoading}
         emptyCount={emptyCount}
         bulkInputRef={bulkInputRef}
+        className="px-8"
       />
 
-      <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
-        {symbols.map((symbol) => (
-          <SymbolSlot
-            key={symbol.id}
-            symbol={symbol}
-            isFocused={focusedSlotId === symbol.id}
-            onFocus={() => setFocusedSlotId(focusedSlotId === symbol.id ? null : symbol.id)}
-            onFileChange={handleFileChange}
-            onRemove={(id) => {
-              removeSymbol(id);
-              if (focusedSlotId === id) setFocusedSlotId(null);
-            }}
-            onEdit={(id) => setEditingSlotId(id)}
-          />
-        ))}
+      <div className="relative">
+        <div
+          className={`grid grid-cols-3 gap-4 overflow-hidden px-8 transition-all duration-500 ease-in-out sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 ${
+            !isExpanded
+              ? "max-h-[190px] sm:max-h-[180px] md:max-h-[160px] lg:max-h-[170px]"
+              : "max-h-[50000px]"
+          }`}
+        >
+          {symbols.map((symbol) => (
+            <SymbolSlot
+              key={symbol.id}
+              symbol={symbol}
+              isFocused={focusedSlotId === symbol.id}
+              onFocus={() => setFocusedSlotId(focusedSlotId === symbol.id ? null : symbol.id)}
+              onFileChange={handleFileChange}
+              onRemove={(id) => {
+                removeSymbol(id);
+                if (focusedSlotId === id) setFocusedSlotId(null);
+              }}
+              onEdit={(id) => setEditingSlotId(id)}
+            />
+          ))}
+        </div>
+
+        {!isExpanded && (
+          <div className="from-card via-card/80 pointer-events-none absolute inset-x-0 bottom-0 h-9 bg-gradient-to-t to-transparent" />
+        )}
+      </div>
+
+      <div
+        className={cn(
+          "border-muted flex justify-center border-t border-dashed pt-1",
+          isExpanded ? "mt-4" : "mt-0",
+        )}
+      >
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="text-primary hover:bg-primary/5 flex items-center gap-2 rounded-full px-6 py-2 text-sm font-bold transition-all active:scale-95"
+        >
+          {isExpanded ? (
+            <>
+              <LucideIcons.ChevronUp size={20} />
+              Show Less
+            </>
+          ) : (
+            <>
+              <LucideIcons.ChevronDown size={20} />
+              Show All {TOTAL_SYMBOLS} Symbols
+            </>
+          )}
+        </button>
       </div>
     </div>
   );

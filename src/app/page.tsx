@@ -69,8 +69,9 @@ export default function Home() {
 
         <footer className="border-border text-muted-foreground border-t pt-10 text-center text-xs leading-relaxed">
           <p>
-            Built with love for handmade gifts.{" "}
-            <span className="bg-primary-soft text-primary rounded px-2 py-0.5 font-semibold">
+            Built with love for handmade gifts.
+            <br />
+            <span className="bg-primary-soft text-primary rounded px-1 py-0.5 font-semibold">
               Any two cards share exactly one symbol
             </span>{" "}
             guaranteed by projective plane mathematics.

@@ -2,6 +2,8 @@ import React from "react";
 
 import { FolderOpen, Zap, X } from "lucide-react";
 
+import { cn } from "@/lib/utils/cn";
+
 interface GridHeaderProps {
   onBulkUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onLoadDefaults: () => void;
@@ -9,6 +11,7 @@ interface GridHeaderProps {
   isBulkLoading: boolean;
   emptyCount: number;
   bulkInputRef: React.RefObject<HTMLInputElement | null>;
+  className?: string;
 }
 
 export const GridHeader: React.FC<GridHeaderProps> = ({
@@ -18,9 +21,10 @@ export const GridHeader: React.FC<GridHeaderProps> = ({
   isBulkLoading,
   emptyCount,
   bulkInputRef,
+  className,
 }) => {
   return (
-    <div className="mb-8 flex flex-col gap-6">
+    <div className={cn("mb-8 flex flex-col gap-6", className)}>
       <div>
         <span className="bg-primary-soft text-primary mb-2 inline-flex w-fit items-center rounded-full px-2.5 py-1 text-[0.65rem] font-bold tracking-widest uppercase">
           Step 1
