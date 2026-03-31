@@ -93,10 +93,10 @@ export class EfficientViTSAMModel implements SegmentationModel {
       [1, points.length],
     );
 
-    // 3. Constant Tensor Shapes for EfficientViT-SAM
+    const res = this.metadata.targetResolution;
     const maskInput = new ort.Tensor("float32", new Float32Array(256 * 256), [1, 1, 256, 256]);
     const hasMaskInput = new ort.Tensor("float32", new Float32Array([0]), [1]);
-    const origImSize = new ort.Tensor("float32", new Float32Array([1024, 1024]), [2]);
+    const origImSize = new ort.Tensor("float32", new Float32Array([res, res]), [2]);
 
     const inputs: any = {};
     const inputNames = this.decoderSession.inputNames;
@@ -118,14 +118,14 @@ export class EfficientViTSAMModel implements SegmentationModel {
     const maskData = results[outputName].data as Float32Array;
 
     // 5. Binary Thresholding (as per plan alpha >= 128)
-    const alpha = new Uint8Array(1024 * 1024);
+    const alpha = new Uint8Array(res * res);
     for (let i = 0; i < maskData.length; i++) {
       alpha[i] = maskData[i] > 0 ? 255 : 0;
     }
 
     return {
-      width: 1024,
-      height: 1024,
+      width: res,
+      height: res,
       alpha,
     };
   }
