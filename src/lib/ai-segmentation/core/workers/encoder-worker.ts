@@ -1,79 +1,51 @@
 /**
- * Dedicated WebWorker for image encoding (downscale → embeddings, store in IndexedDB).
+ * Generic WebWorker for image encoding.
+ * Delegates all logic to a SegmentationModel instance.
  */
 
-import { set } from "idb-keyval";
-import * as ort from "onnxruntime-web";
+import { ModelFactory } from "../../models/model-factory";
+import { SegmentationModel } from "../../models/segmentation-model";
+import { EncoderMessage } from "./protocol";
 
-import { getEmbeddingKey } from "../utils/embedding-utils";
-import { imageToTensor, scaleImage } from "../utils/image-utils";
-import { EncoderMessage, EncoderResponse } from "./protocol";
-
-let session: ort.InferenceSession | null = null;
-let currentModelId: string | null = null;
-
-// Initialize WASM paths for ORT
-// Note: In a production app, you might want to host these locally or use a CDN
-ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/";
+let activeModel: SegmentationModel | null = null;
+let activeEncodeId = 0;
 
 self.onmessage = async (e: MessageEvent<EncoderMessage>) => {
   const msg = e.data;
 
-  try {
-    switch (msg.type) {
-      case "LOAD_MODEL": {
-        if (currentModelId === msg.modelId && session) {
-          self.postMessage({ type: "LOADED" } as EncoderResponse);
-          return;
-        }
+  if (msg.type === "LOAD_MODEL") {
+    try {
+      activeModel?.dispose();
+      activeModel = ModelFactory.create(msg.modelId);
 
-        // Dispose previous session
-        if (session) {
-          await session.release();
-        }
+      // The worker only needs one of the two binaries,
+      // but SegmentationModel.load() currently expects both encoder and decoder.
+      // We'll pass dummy array buffer for whichever part this worker doesn't use.
+      await activeModel.load(msg.modelData, new ArrayBuffer(0));
+      self.postMessage({ type: "LOADED" });
+    } catch (err: any) {
+      self.postMessage({ type: "ERROR", message: `Failed to load model: ${err.message}` });
+    }
+  } else if (msg.type === "ENCODE_IMAGE") {
+    if (!activeModel) {
+      self.postMessage({ type: "ERROR", message: "No model loaded" });
+      return;
+    }
 
-        session = await ort.InferenceSession.create(msg.modelData, {
-          executionProviders: ["webgpu", "wasm"],
-        });
-        currentModelId = msg.modelId;
-        self.postMessage({ type: "LOADED" } as EncoderResponse);
-        break;
-      }
+    const encodeId = ++activeEncodeId;
 
-      case "ENCODE_IMAGE": {
-        if (!session) {
-          throw new Error("Encoder session not initialized");
-        }
+    try {
+      const embeddingKey = await activeModel.encode(msg.image, msg.imageHash);
+      if (encodeId !== activeEncodeId) return;
 
-        const { image, imageHash, modelId, modelVersion } = msg;
-
-        // EfficientViT-SAM-L0 expects 512x512, others might expect 1024x1024
-        // For simplicity, we'll use 512 for L0 and 1024 for others
-        const targetDim = modelId === "EFFICIENTVIT_L0" ? 512 : 1024;
-        const scaledImage = await scaleImage(image, targetDim, targetDim);
-        const tensorData = await imageToTensor(scaledImage);
-
-        const inputTensor = new ort.Tensor("float32", tensorData, [1, 3, targetDim, targetDim]);
-        const outputs = await session.run({ image: inputTensor });
-        const embeddings = outputs.image_embeddings.data as Float32Array;
-
-        const embeddingKey = getEmbeddingKey(modelId, modelVersion, imageHash);
-        await set(embeddingKey, embeddings);
-
-        self.postMessage({ type: "ENCODED", imageHash, embeddingKey } as EncoderResponse);
-        break;
-      }
-
-      case "DISPOSE": {
-        if (session) {
-          await session.release();
-          session = null;
-          currentModelId = null;
-        }
-        break;
+      self.postMessage({ type: "ENCODED", embeddingKey });
+    } catch (err: any) {
+      if (encodeId === activeEncodeId) {
+        self.postMessage({ type: "ERROR", message: `Encoding failed: ${err.message}` });
       }
     }
-  } catch (err: any) {
-    self.postMessage({ type: "ERROR", message: err.message } as EncoderResponse);
+  } else if (msg.type === "DISPOSE") {
+    activeModel?.dispose();
+    activeModel = null;
   }
 };
