@@ -7,7 +7,13 @@ import { get, set } from "idb-keyval";
 import * as ort from "onnxruntime-web";
 
 import { getEmbeddingKey } from "../../core/utils/embedding-utils";
-import { Mask, cropAndRescaleMask } from "../../core/utils/mask-utils";
+import { Mask } from "../../core/utils/mask-utils";
+import {
+  applyLetterbox,
+  imageBitmapToNormalizedTensor,
+  mapPointToLetterbox,
+  undoLetterbox,
+} from "../../core/utils/segmentation-utils";
 import { Point, SegmentationModel, ModelMetadata } from "../segmentation-model";
 
 export class SAM2Model implements SegmentationModel {
@@ -31,7 +37,6 @@ export class SAM2Model implements SegmentationModel {
 
       try {
         console.info(`[SAM2Model] Tier 1: Attempting WebGPU for ${name}...`);
-        // We slice(0) to prevent detachment if the attempt fails
         return await ort.InferenceSession.create(data.slice(0), commonOptions);
       } catch (err: any) {
         console.warn(`[SAM2Model] Tier 1 (WebGPU) failed for ${name}:`, err.message || err);
@@ -52,7 +57,7 @@ export class SAM2Model implements SegmentationModel {
           try {
             return await ort.InferenceSession.create(data, {
               executionProviders: ["wasm"],
-              graphOptimizationLevel: "disabled", // Disabling optimizations often fixes ShapeInferenceErrors
+              graphOptimizationLevel: "disabled",
             });
           } catch (safeErr: any) {
             console.error(`[SAM2Model] All tiers failed for ${name}:`, safeErr.message || safeErr);
@@ -62,82 +67,59 @@ export class SAM2Model implements SegmentationModel {
       }
     };
 
-    const [enc, dec] = await Promise.all([
-      encoderData.byteLength > 0 ? loadSession(encoderData, "encoder") : Promise.resolve(null),
-      decoderData.byteLength > 0 ? loadSession(decoderData, "decoder") : Promise.resolve(null),
-    ]);
+    const tasks: Promise<void>[] = [];
 
-    if (enc) {
-      this.encoderSession = enc;
-      const meta = (enc as any).inputsMeta?.[enc.inputNames[0]];
-      console.log(
-        `[SAM2Model] Encoder loaded. Input: ${enc.inputNames[0]} ${meta ? JSON.stringify(meta) : "unknown shape"}`,
+    if (encoderData.byteLength > 0) {
+      tasks.push(
+        loadSession(encoderData, "encoder").then((s) => {
+          this.encoderSession = s;
+        }),
       );
     }
-    if (dec) {
-      this.decoderSession = dec;
-      console.log(`[SAM2Model] Decoder loaded. Inputs: ${dec.inputNames.join(", ")}`);
+    if (decoderData.byteLength > 0) {
+      tasks.push(
+        loadSession(decoderData, "decoder").then((s) => {
+          this.decoderSession = s;
+        }),
+      );
     }
+
+    await Promise.all(tasks);
   }
 
   async encode(image: ImageBitmap, imageHash: string): Promise<string> {
     if (!this.encoderSession) throw new Error("Encoder session not initialized");
 
     const embeddingKey = getEmbeddingKey(this.metadata.id, this.metadata.version, imageHash);
-
-    // 1. Check local cache (IndexedDB)
     const existing = await get(embeddingKey);
     if (existing) return embeddingKey;
 
-    // 2. Resolve target dimensions (Letterbox)
+    // 1. Resolve target dimensions (Letterbox)
     const res = this.metadata.targetResolution;
-    const w = image.width;
-    const h = image.height;
-    const scale = Math.min(res / w, res / h);
-    const newW = Math.round(w * scale);
-    const newH = Math.round(h * scale);
-    const padX = (res - newW) / 2;
-    const padY = (res - newH) / 2;
+    const { bitmap, info } = await applyLetterbox(image, res);
 
-    // 3. Fast Canvas Resizing (Letterboxed into a square canvas)
-    const canvas = new OffscreenCanvas(res, res);
-    const ctx = canvas.getContext("2d")!;
-    // Clear to black (standard for padding)
-    ctx.fillStyle = "black";
-    ctx.fillRect(0, 0, res, res);
-    // Draw centered
-    ctx.drawImage(image, padX, padY, newW, newH);
+    // 2. Prepare Tensor (SAM2 always uses ImageNet normalization)
+    const tensorData = await imageBitmapToNormalizedTensor(bitmap, true);
 
-    const idata = ctx.getImageData(0, 0, res, res).data;
-    const tensor = new Float32Array(3 * res * res);
-    const chSize = res * res;
-
-    // Normalization + Tensorization
-    for (let i = 0; i < chSize; i++) {
-      const srcIdx = i * 4;
-      tensor[i] = (idata[srcIdx] / 255.0 - 0.485) / 0.229; // R
-      tensor[i + chSize] = (idata[srcIdx + 1] / 255.0 - 0.456) / 0.224; // G
-      tensor[i + chSize * 2] = (idata[srcIdx + 2] / 255.0 - 0.406) / 0.225; // B
-    }
-
-    // Dynamic Shape detection (Is 5D?)
     const dimsMeta = (this.encoderSession as any).inputsMeta?.[this.encoderSession.inputNames[0]]
       ?.dims;
     const is5D = dimsMeta?.length === 5;
-    const dims = is5D ? [1, 1, 3, res, res] : [1, 3, res, res];
-    const inputTensor = new ort.Tensor("float32", tensor, dims);
+    const inputTensor = new ort.Tensor(
+      "float32",
+      tensorData,
+      is5D ? [1, 1, 3, res, res] : [1, 3, res, res],
+    );
 
-    console.log(`[SAM2Model] Encoding image (Normalization + Letterbox). is5D: ${is5D}`);
+    // 3. Encoder Inference
+    const results = await this.encoderSession.run({
+      [this.encoderSession.inputNames[0]]: inputTensor,
+    });
 
-    // 4. Encoder Inference
-    const inputName = this.encoderSession.inputNames[0];
-    const results = await this.encoderSession.run({ [inputName]: inputTensor });
-
-    // Store ALL outputs
-    const storage: Record<string, any> = {
+    // Store ALL outputs (SAM2 has multiple high-res feature scales)
+    const storage: any = {
       originalWidth: image.width,
       originalHeight: image.height,
-      letterbox: { scale, padX, padY, newW, newH },
+      letterbox: info,
       outputs: {},
     };
 
@@ -152,141 +134,119 @@ export class SAM2Model implements SegmentationModel {
   async decode(embeddingKey: string, points: Point[]): Promise<Mask> {
     if (!this.decoderSession) throw new Error("Decoder session not initialized");
 
-    // 1. Fetch multi-scale embeddings
     const entry = await get(embeddingKey);
-    if (!entry) throw new Error("Embeddings not found in IndexedDB");
+    if (!entry) throw new Error("Embeddings not found in cache");
 
-    const { outputs, originalWidth, originalHeight, letterbox } = entry;
-    const { scale, padX, padY, newW, newH } = letterbox || { scale: 1, padX: 0, padY: 0 };
+    const { outputs, originalWidth, originalHeight, letterbox: info } = entry;
+    const res = this.metadata.targetResolution;
 
-    // 2. Prepare Clicks: Map from relative original to letterboxed absolute
+    // 1. Map clicks to letterbox space
     const getExpectedShape = (name: string) =>
       (this.decoderSession as any).inputsMeta?.[name]?.dims;
-
     const coordsShape = getExpectedShape("point_coords") || [1, points.length, 2];
-    const isCoords5D = coordsShape.length === 4; // B, T, P, 2
+    const is5D = coordsShape.length === 4 || coordsShape.length === 5;
 
-    const pointCoords = new ort.Tensor(
-      "float32",
-      new Float32Array(
-        points
-          .map((p) => {
-            const x = p.x * originalWidth * scale + padX;
-            const y = p.y * originalHeight * scale + padY;
-            return [x, y];
-          })
-          .flat(),
+    const mapped = points.map((p) => mapPointToLetterbox(p, info));
+    const flatCoords = new Float32Array(mapped.flatMap((p) => [p.x, p.y]));
+    const flatLabels = new Float32Array(points.map((p) => (p.positive ? 1 : 0)));
+
+    const inputs: any = {
+      point_coords: new ort.Tensor(
+        "float32",
+        flatCoords,
+        is5D ? [1, 1, points.length, 2] : [1, points.length, 2],
       ),
-      isCoords5D ? [1, 1, points.length, 2] : [1, points.length, 2],
-    );
+      point_labels: new ort.Tensor(
+        "float32",
+        flatLabels,
+        is5D ? [1, 1, points.length] : [1, points.length],
+      ),
+    };
 
-    const pointLabels = new ort.Tensor(
-      "float32",
-      new Float32Array(points.map((p) => (p.positive ? 1 : 0))),
-      isCoords5D ? [1, 1, points.length] : [1, points.length],
-    );
-
-    console.log(`[SAM2Model] Decoding clicks. Points: ${points.length}, is5D: ${isCoords5D}`);
-
-    const inputs: any = {};
+    // 2. Map Multi-scale Features with Aliases
     const inputNames = this.decoderSession.inputNames;
-
-    // Map outputs to inputs
     const findOutput = (prefixes: string[]) => {
-      for (const prefix of prefixes) {
-        if (outputs[prefix]) return outputs[prefix];
-        const match = Object.keys(outputs).find((k) => k.startsWith(prefix));
+      for (const p of prefixes) {
+        if (outputs[p]) return outputs[p];
+        const match = Object.keys(outputs).find((k) => k.startsWith(p));
         if (match) return outputs[match];
       }
       return null;
     };
 
-    const embedData = findOutput(["image_embeddings", "image_embed", "image_features"]);
-    if (embedData) {
+    // Primary Embedding
+    const encEmbed = findOutput(["image_embeddings", "image_embed", "image_features"]);
+    if (encEmbed) {
       const name = inputNames.find((n) => n.includes("embed") || n.includes("feat"));
       if (name) {
         const shape = getExpectedShape(name) || [1, 256, 64, 64];
-        const dims = shape.length === 5 ? [1, 1, 256, 64, 64] : [1, 256, 64, 64];
-        inputs[name] = new ort.Tensor("float32", embedData, dims);
+        inputs[name] = new ort.Tensor(
+          "float32",
+          encEmbed,
+          shape.length === 5 ? [1, 1, ...shape.slice(-3)] : shape,
+        );
       }
     }
 
+    // High Res Features
     if (inputNames.includes("high_res_feats_0")) {
       const data = outputs.high_res_feats_0 || outputs.high_res_feats_0_0;
-      if (data) {
-        const shape = getExpectedShape("high_res_feats_0") || [1, 32, 256, 256];
-        const dims = shape.length === 5 ? [1, 1, 32, 256, 256] : [1, 32, 256, 256];
-        inputs.high_res_feats_0 = new ort.Tensor("float32", data, dims);
-      }
+      if (data)
+        inputs.high_res_feats_0 = new ort.Tensor(
+          "float32",
+          data,
+          getExpectedShape("high_res_feats_0") || [1, 32, 256, 256],
+        );
     }
     if (inputNames.includes("high_res_feats_1")) {
       const data = outputs.high_res_feats_1 || outputs.high_res_feats_1_0;
-      if (data) {
-        const shape = getExpectedShape("high_res_feats_1") || [1, 64, 128, 128];
-        const dims = shape.length === 5 ? [1, 1, 64, 128, 128] : [1, 64, 128, 128];
-        inputs.high_res_feats_1 = new ort.Tensor("float32", data, dims);
-      }
+      if (data)
+        inputs.high_res_feats_1 = new ort.Tensor(
+          "float32",
+          data,
+          getExpectedShape("high_res_feats_1") || [1, 64, 128, 128],
+        );
     }
 
-    inputs.point_coords = pointCoords;
-    inputs.point_labels = pointLabels;
-
+    // Auxiliary inputs
     const maskInputName = inputNames.find((n) => n.includes("mask_input"));
     if (maskInputName) {
       const shape = getExpectedShape(maskInputName) || [1, 1, 256, 256];
-      const size = shape.reduce((a: number, b: number) => a * b, 1);
-      inputs[maskInputName] = new ort.Tensor("float32", new Float32Array(size), shape);
+      inputs[maskInputName] = new ort.Tensor(
+        "float32",
+        new Float32Array(shape.reduce((a: number, b: number) => a * b, 1)),
+        shape,
+      );
     }
-
     const hasMaskInputName = inputNames.find((n) => n.includes("has_mask_input"));
-    if (hasMaskInputName) {
+    if (hasMaskInputName)
       inputs[hasMaskInputName] = new ort.Tensor("float32", new Float32Array([0]), [1]);
-    }
 
-    const res = this.metadata.targetResolution;
     const origSizeName = inputNames.find(
       (n) => n.includes("orig_im_size") || n.includes("orig_size"),
     );
-    if (origSizeName) {
+    if (origSizeName)
       inputs[origSizeName] = new ort.Tensor("float32", new Float32Array([res, res]), [2]);
-    }
 
+    // 3. Decoder Inference
     const results = await this.decoderSession.run(inputs);
-    const outputName = this.decoderSession.outputNames.includes("masks")
-      ? "masks"
-      : this.decoderSession.outputNames[0];
-
+    const outputName = inputNames.includes("masks") ? "masks" : this.decoderSession.outputNames[0];
     const maskTensor = results[outputName];
     const maskData = maskTensor.data as Float32Array;
-    const dims = maskTensor.dims;
-    const outH = dims[2];
-    const outW = dims[3];
 
-    // Important: We need to reverse letterbox.
-    // The mask resolution (outH, outW) might be different from encoding resolution (res, res).
-    // Usually it's 1:1 (1024x1024) or 1:4 (256x256).
-    const outScaleX = outW / res;
-    const outScaleY = outH / res;
-
+    const [outH, outW] = [
+      maskTensor.dims[maskTensor.dims.length - 2],
+      maskTensor.dims[maskTensor.dims.length - 1],
+    ];
     const alpha = new Uint8Array(outW * outH);
     for (let i = 0; i < outW * outH; i++) {
       alpha[i] = maskData[i] > 0 ? 255 : 0;
     }
 
-    const rawMask = { width: outW, height: outH, alpha };
-
-    // Use un-padding logic
-    const cropX = padX * outScaleX;
-    const cropY = padY * outScaleY;
-    const cropW = newW * outScaleX;
-    const cropH = newH * outScaleY;
-
-    return await cropAndRescaleMask(
-      rawMask,
-      cropX,
-      cropY,
-      cropW,
-      cropH,
+    // 4. Reverse Transformation
+    return await undoLetterbox(
+      { width: outW, height: outH, alpha },
+      info,
       originalWidth,
       originalHeight,
     );

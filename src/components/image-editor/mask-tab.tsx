@@ -219,21 +219,19 @@ export const MaskTab: React.FC<MaskTabProps> = ({
     const pos = groupRef.current.getRelativePointerPosition();
     console.log("[handleAIClick] pos", pos);
 
-    // Calculate relative points (0 to 1)
-    const relX = pos.x / cropW;
-    const relY = pos.y / cropH;
-
     // Boundary check
-    if (relX < 0 || relX > 1 || relY < 0 || relY > 1) {
-      console.warn("Click outside image bounds", { relX, relY });
+    if (pos.x < 0 || pos.x > cropW || pos.y < 0 || pos.y > cropH) {
+      console.warn("Click outside image bounds", pos);
       return;
     }
 
     setIsAISegmenting(true);
-    setLastRelClick({ x: relX, y: relY });
+    // State storage for relative info can stay if needed for debug view,
+    // but the engine now wants absolute pixels.
+    setLastRelClick({ x: pos.x / cropW, y: pos.y / cropH });
     try {
       const mask = await decodePoints(aiEmbeddingKey, [
-        { x: relX, y: relY, positive: mode !== "subtract" },
+        { x: pos.x, y: pos.y, positive: mode !== "subtract" },
       ]);
       setLastAIOutput(mask);
 

@@ -12,7 +12,7 @@ export class ModelFactory {
     const config = AVAILABLE_MODELS[modelId];
     if (!config) throw new Error(`Unknown model ID: ${modelId}`);
 
-    if (modelId === "SAM2_HIERA_TINY") {
+    if (modelId.includes("SAM2")) {
       return new SAM2Model(config);
     }
 
