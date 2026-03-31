@@ -37,19 +37,21 @@ export const CardPreview: React.FC = () => {
       <div className="relative">
         <div
           className={cn(
-            "grid grid-cols-1 justify-items-center gap-8 overflow-hidden px-8 pt-3 transition-all duration-500 ease-in-out sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4",
+            "overflow-hidden transition-all duration-500 ease-in-out",
             !isExpanded ? "max-h-[340px]" : "max-h-[50000px] pb-6",
           )}
         >
-          {rawCards.map((cardIndices, cardIdx) => (
-            <GameCard
-              key={cardIdx}
-              cardIdx={cardIdx}
-              cardIndices={cardIndices}
-              symbols={symbols}
-              symbolsPerCard={symbolsPerCard}
-            />
-          ))}
+          <div className="grid grid-cols-1 justify-items-center gap-8 px-8 pt-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {rawCards.map((cardIndices, cardIdx) => (
+              <GameCard
+                key={cardIdx}
+                cardIdx={cardIdx}
+                cardIndices={cardIndices}
+                symbols={symbols}
+                symbolsPerCard={symbolsPerCard}
+              />
+            ))}
+          </div>
         </div>
 
         {!isExpanded && (

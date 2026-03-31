@@ -146,26 +146,28 @@ export const SymbolGrid: React.FC = () => {
       <div className="relative">
         <div
           className={cn(
-            "grid grid-cols-3 gap-4 overflow-hidden px-8 transition-all duration-500 ease-in-out sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8",
+            "overflow-hidden transition-all duration-500 ease-in-out",
             !isExpanded
               ? "max-h-[190px] sm:max-h-[180px] md:max-h-[160px] lg:max-h-[170px]"
               : "max-h-[50000px]",
           )}
         >
-          {activeSymbols.map((symbol) => (
-            <SymbolSlot
-              key={symbol.id}
-              symbol={symbol}
-              isFocused={focusedSlotId === symbol.id}
-              onFocus={() => setFocusedSlotId(focusedSlotId === symbol.id ? null : symbol.id)}
-              onFileChange={handleFileChange}
-              onRemove={(id) => {
-                removeSymbol(id);
-                if (focusedSlotId === id) setFocusedSlotId(null);
-              }}
-              onEdit={(id) => setEditingSlotId(id)}
-            />
-          ))}
+          <div className="grid grid-cols-3 gap-4 px-8 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+            {activeSymbols.map((symbol) => (
+              <SymbolSlot
+                key={symbol.id}
+                symbol={symbol}
+                isFocused={focusedSlotId === symbol.id}
+                onFocus={() => setFocusedSlotId(focusedSlotId === symbol.id ? null : symbol.id)}
+                onFileChange={handleFileChange}
+                onRemove={(id) => {
+                  removeSymbol(id);
+                  if (focusedSlotId === id) setFocusedSlotId(null);
+                }}
+                onEdit={(id) => setEditingSlotId(id)}
+              />
+            ))}
+          </div>
         </div>
 
         {!isExpanded && (
