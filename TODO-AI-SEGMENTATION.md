@@ -3,7 +3,7 @@
 1. Overview
 
 Goal: Integrate AI-assisted segmentation into MaskTap using ONNX SAM / EfficientViT models.
-	•	AI tool behaves like existing manual tools (Brush, Lasso, Rectangle, Ellipse) and fully integrates with Add/Subtract/Replace modes.
+	•	AI tool (sparkle icon) behaves like existing manual tools (Brush, Lasso, Rectangle, Ellipse) and fully integrates with Add/Subtract/Replace modes.
 	•	Two dedicated workers: Encoder Worker and Decoder Worker.
 	•	Models loaded from the Browser Cache API, not bundled in repo.
 	•	Users can select from multiple models, including EfficientVit-SAM variants (L0, L1, L2, XL0, XL1).
@@ -36,6 +36,7 @@ export const AVAILABLE_MODELS = {
 
 3. Segmentation Model Interface
 
+```tsx
 export interface SegmentationModel {
   /** Load encoder + decoder from ArrayBuffers or Cache API */
   load(): Promise<void>;
@@ -62,7 +63,7 @@ export interface SegmentationModel {
   /** ONNX session sizes (optional, for telemetry / UI) */
   sizeMB: number;
 }
-
+```
 	•	dispose() frees ONNX runtime + GPU buffers.
 	•	The interface allows multiple implementations (EfficientVit, SAM, future models).
 
@@ -73,6 +74,7 @@ export interface SegmentationModel {
 4.1 Encoder Worker
 	•	Handles encoding images into embeddings.
 	•	Only 1 encode per model runs at a time.
+	•	Proactive Encoding: If a model is active, immediately kick off encoding when the image or crop region changes (don't wait for AI tool selection!).
 	•	Drops current encoding if a new image is selected.
 
 Message protocol:
@@ -134,14 +136,16 @@ type Mask = {
 7. UI Integration
 
 7.1 Model Selector Dropdown
-	•	Shows last used model if available in Cache API.
-	•	Displays Download | Downloading… | Use.
+	•	Trigger: Shows currently active model. If none, shows "Download model to start" in a distinct, "very obvious" color.
+	•	Last Used: Always reload the last used model if available in the Cache API.
+	•	List: Models available locally show in foreground color; others show in muted-foreground color.
+	•	Downloads: Shows "Use", "Downloading (X MB / Y MB)", or "Download". No progress bar, just size counts.
 	•	Confirmation dialog on every download.
 
 7.2 Floating Debug Window
 	•	Left: input image passed to decoder
 	•	Right: output mask
-	•	Optional spinner during processing
+	•	Spinner during any in-flight processing.
 
 7.3 MaskTap Call Sites
 
@@ -198,7 +202,7 @@ const mask = await decodePoints(imageHash, points, "add");
       konva-adapter.ts    # apply to Konva working mask
       image-hash.ts
   /hooks/
-    useAISegmentationService.ts  # expose loadModel, encodeImage, decodePoints
+    use-ai-segmentation.ts  # expose useAISegmentation with loadModel, encodeImage, decodePoints
   /models/
     model-constants.ts            # AVAILABLE_MODELS dict
 
