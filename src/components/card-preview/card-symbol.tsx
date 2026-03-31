@@ -4,25 +4,33 @@ interface CardSymbolProps {
   symbolIdx: number;
   url: string | null;
   placement: React.CSSProperties;
-  size?: number;
+  relativeSize?: number; // percentage of card width
 }
 
-export const CardSymbol: React.FC<CardSymbolProps> = ({ symbolIdx, url, placement, size = 48 }) => {
+export const CardSymbol: React.FC<CardSymbolProps> = ({
+  symbolIdx,
+  url,
+  placement,
+  relativeSize = 20,
+}) => {
   return (
-    <div className="absolute" style={placement}>
+    <div
+      className="absolute flex items-center justify-center"
+      style={{
+        ...placement,
+        width: `${relativeSize}%`,
+        height: `${relativeSize}%`,
+      }}
+    >
       {url ? (
         <img
           src={url}
           alt="symbol"
-          className="pointer-events-none object-contain select-none"
+          className="pointer-events-none h-full w-full object-contain select-none"
           draggable={false}
-          style={{ width: `${size}px`, height: `${size}px` }}
         />
       ) : (
-        <div
-          className="pointer-events-none flex items-center justify-center rounded-full bg-gray-100 text-[8px] text-gray-400 select-none"
-          style={{ width: `${size * 0.8}px`, height: `${size * 0.8}px` }}
-        >
+        <div className="pointer-events-none flex aspect-square h-[80%] items-center justify-center rounded-full bg-gray-100 text-[1.5cqw] text-gray-400 select-none md:text-[8px]">
           S{symbolIdx}
         </div>
       )}

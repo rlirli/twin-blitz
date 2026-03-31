@@ -28,7 +28,6 @@ export const GameCard: React.FC<GameCardProps> = ({
   className,
 }) => {
   const placements = React.useMemo(() => getCardPlacements(cardIdx), [cardIdx]);
-  const symbolSize = Math.round((size / 250) * 48);
 
   return (
     <div
@@ -38,12 +37,12 @@ export const GameCard: React.FC<GameCardProps> = ({
         interactive && "transition-transform hover:scale-105",
         className,
       )}
-      style={{ width: `${size}px`, maxWidth: `100%` }}
+      style={{ width: `${size}px`, maxWidth: "100%" }}
     >
       <div className="pointer-events-none absolute inset-0 rounded-full border-4 border-dashed border-gray-50" />
 
       {showLabel && (
-        <div className="pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 font-mono text-[10px] text-gray-300 select-none">
+        <div className="pointer-events-none absolute top-[5%] left-1/2 -translate-x-1/2 font-mono text-[max(8px,1.5vw)] text-gray-300 select-none md:text-[10px]">
           CARD #{cardIdx + 1}
         </div>
       )}
@@ -57,7 +56,7 @@ export const GameCard: React.FC<GameCardProps> = ({
             key={symbolIdx}
             symbolIdx={symbolIdx}
             url={symbol.url}
-            size={symbolSize}
+            relativeSize={20} // 20% of card size
             placement={
               {
                 left: `${placement.x}%`,
