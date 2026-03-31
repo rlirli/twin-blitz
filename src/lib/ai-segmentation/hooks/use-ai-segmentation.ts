@@ -5,6 +5,7 @@
 import { useState, useCallback, useEffect } from "react";
 
 import { aiSegmentationService, DownloadProgress } from "../ai-segmentation.service";
+import { Mask } from "../core/utils/mask-utils";
 import { Point } from "../core/workers/protocol";
 import { ModelId, ModelInfo, AVAILABLE_MODELS } from "../models/model-constants";
 
@@ -47,16 +48,19 @@ export function useAISegmentation() {
     }
   }, []);
 
-  const encodeImage = useCallback(async (image: ImageBitmap, imageHash: string) => {
-    try {
-      return await aiSegmentationService.encodeImage(image, imageHash);
-    } catch (err: any) {
-      setError(err.message || "Failed to encode image");
-      throw err;
-    }
-  }, []);
+  const encodeImage = useCallback(
+    async (image: ImageBitmap, imageHash: string): Promise<string> => {
+      try {
+        return await aiSegmentationService.encodeImage(image, imageHash);
+      } catch (err: any) {
+        setError(err.message || "Failed to encode image");
+        throw err;
+      }
+    },
+    [],
+  );
 
-  const decodePoints = useCallback(async (embeddingKey: string, points: Point[]) => {
+  const decodePoints = useCallback(async (embeddingKey: string, points: Point[]): Promise<Mask> => {
     try {
       return await aiSegmentationService.decodePoints(embeddingKey, points);
     } catch (err: any) {

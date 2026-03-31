@@ -7,6 +7,7 @@ import { get } from "idb-keyval";
 
 import { logDebugImage, logDebugMask } from "./core/utils/debug-utils";
 import { getEmbeddingKey } from "./core/utils/embedding-utils";
+import { Mask } from "./core/utils/mask-utils";
 import { DecoderResponse, EncoderResponse, Point } from "./core/workers/protocol";
 import { AVAILABLE_MODELS, ModelId, ModelInfo } from "./models/model-constants";
 
@@ -198,7 +199,7 @@ class AISegmentationService {
   /**
    * Decodes embeddings for a set of clicks.
    */
-  async decodePoints(embeddingKey: string, points: Point[]): Promise<any> {
+  async decodePoints(embeddingKey: string, points: Point[]): Promise<Mask> {
     // Mask type is in utils
     if (!this.currentModel) throw new Error("No model loaded");
     this.ensureWorkers();
