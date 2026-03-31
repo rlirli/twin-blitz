@@ -202,6 +202,9 @@ const mask = await decodePoints(imageHash, points, "add");
 
 ```
 /ai-segmentation/                 <-- top-level AI segmentation library
+  /components
+    /model-selector.tsx           # Dropdown for selecting models
+    /debug-window.tsx             # Floating debug window for input image and output mask
   /core/
     /workers/
       encoder-worker.ts           # Dedicated WebWorker for image encoding (downscale → embeddings, store in IndexedDB)
