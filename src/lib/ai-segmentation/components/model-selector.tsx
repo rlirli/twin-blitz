@@ -101,12 +101,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                 : "Download Model to Start"}
           </span>
           {isDownloading && (
-            <>
-              <span className="text-[9px] font-medium text-indigo-400">Downloading</span>
-              <span className="font-mono text-[9px] text-indigo-400">
-                ({formatMB(downloadProgress.loaded)} / {formatMB(downloadProgress.total)} MB)
-              </span>
-            </>
+            <span className="mt-0.5 font-mono text-[9px] text-indigo-400">
+              Downloading ({formatMB(downloadProgress.loaded)} / {formatMB(downloadProgress.total)}{" "}
+              MB)
+            </span>
           )}
         </div>
         {isLoading ? (
@@ -164,13 +162,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                         <span className="text-xs font-bold">{model.name}</span>
                         <span className="text-[10px] opacity-70">
                           {isItemDownloading ? (
-                            <>
-                              <span className="text-indigo-400">Downloading</span>{" "}
-                              <span className="font-mono">
-                                ({formatMB(downloadProgress.loaded)} /{" "}
-                                {formatMB(downloadProgress.total)} MB)
-                              </span>
-                            </>
+                            <span className="font-mono text-indigo-400">
+                              Downloading ({formatMB(downloadProgress.loaded)} /{" "}
+                              {formatMB(downloadProgress.total)} MB)
+                            </span>
                           ) : (
                             <span>
                               {isCached ? "Ready" : `${model.sizeMB.toFixed(1)}MB`} • Version{" "}
