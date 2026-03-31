@@ -135,7 +135,7 @@ export const HowItWorks: React.FC = () => {
 
   return (
     <section className="mt-3 mb-2">
-      <div className="bg-card border-border flex flex-wrap gap-8 overflow-hidden rounded-2xl border px-8 pt-6 pb-0 shadow-[0_4px_24px_rgba(0,0,0,0.05)]">
+      <div className="bg-card border-primary/70 flex flex-wrap gap-8 overflow-hidden rounded-4xl border-2 border-b-6 px-6 pt-6 pb-0 shadow-[0_4px_24px_rgba(0,0,0,0.05)]">
         {steps.map(({ step, title, desc, visual }) => (
           <div key={step} className="flex min-w-48 flex-1 flex-col gap-4 overflow-hidden">
             <div>
