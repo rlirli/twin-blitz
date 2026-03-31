@@ -4,9 +4,9 @@ import React, { useMemo, useState } from "react";
 
 import { ChevronDown, ChevronUp } from "lucide-react";
 
-import { PROJECTIVE_PLANE_ORDER, TOTAL_CARDS } from "@/lib/constants";
 import { cn } from "@/lib/utils/cn";
 import { generateProjectivePlane } from "@/lib/utils/game-core";
+import { useDeckSettingsStore } from "@/store/use-settings-store";
 import { useSymbolStore } from "@/store/use-symbol-store";
 
 import { GameCard } from "./game-card";
@@ -14,9 +14,11 @@ import { GameCard } from "./game-card";
 export const CardPreview: React.FC = () => {
   const { symbols } = useSymbolStore();
   const [isExpanded, setIsExpanded] = useState(false);
+  const { order, totalCardCount, symbolsPerCard } = useDeckSettingsStore();
+
   const rawCards = useMemo(
-    () => generateProjectivePlane(PROJECTIVE_PLANE_ORDER).slice(0, TOTAL_CARDS),
-    [PROJECTIVE_PLANE_ORDER],
+    () => generateProjectivePlane(order).slice(0, totalCardCount),
+    [order, totalCardCount],
   );
 
   return (
@@ -40,7 +42,13 @@ export const CardPreview: React.FC = () => {
           )}
         >
           {rawCards.map((cardIndices, cardIdx) => (
-            <GameCard key={cardIdx} cardIdx={cardIdx} cardIndices={cardIndices} symbols={symbols} />
+            <GameCard
+              key={cardIdx}
+              cardIdx={cardIdx}
+              cardIndices={cardIndices}
+              symbols={symbols}
+              symbolsPerCard={symbolsPerCard}
+            />
           ))}
         </div>
 
@@ -67,7 +75,7 @@ export const CardPreview: React.FC = () => {
           ) : (
             <>
               <ChevronDown size={20} />
-              Show All {TOTAL_CARDS} Cards
+              Show All {totalCardCount} Cards
             </>
           )}
         </button>

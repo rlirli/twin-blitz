@@ -7,24 +7,25 @@ import Link from "next/link";
 import { ArrowLeft, Printer, FileDown } from "lucide-react";
 
 import { AppLogo } from "@/components/shared";
-import { PROJECTIVE_PLANE_ORDER, TOTAL_CARDS } from "@/lib/constants";
 import { cn } from "@/lib/utils/cn";
 import { generateProjectivePlane } from "@/lib/utils/game-core";
 import { exportCardsToZip } from "@/lib/utils/image-zip-exporter";
 import { getCardPlacements } from "@/lib/utils/layout-engine";
+import { useDeckSettingsStore } from "@/store/use-settings-store";
 import { useSymbolStore } from "@/store/use-symbol-store";
 
 type PaperSize = "9x13" | "10x15" | "13x18";
 
 export default function PrintPage() {
   const { symbols } = useSymbolStore();
+  const { order, totalCardCount, symbolsPerCard } = useDeckSettingsStore();
   const [paperSize, setPaperSize] = useState<PaperSize>("10x15");
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
 
   const rawCards = useMemo(
-    () => generateProjectivePlane(PROJECTIVE_PLANE_ORDER).slice(0, TOTAL_CARDS),
-    [PROJECTIVE_PLANE_ORDER],
+    () => generateProjectivePlane(order).slice(0, totalCardCount),
+    [order, totalCardCount],
   );
 
   const handleExportZip = async () => {
@@ -33,7 +34,7 @@ export default function PrintPage() {
     setExportProgress(0);
 
     try {
-      const blob = await exportCardsToZip(rawCards, symbols, paperSize, (count) => {
+      const blob = await exportCardsToZip(rawCards, symbols, symbolsPerCard, paperSize, (count) => {
         setExportProgress(count);
       });
       const url = URL.createObjectURL(blob);
@@ -130,7 +131,7 @@ export default function PrintPage() {
               {isExporting ? (
                 <>
                   <span className="border-primary h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" />
-                  ({exportProgress}/{TOTAL_CARDS})
+                  ({exportProgress}/{totalCardCount})
                 </>
               ) : (
                 "Export as Images (.zip)"
@@ -147,7 +148,7 @@ export default function PrintPage() {
       {/* ── Pages for Printing ── */}
       <div className="flex flex-col items-center gap-12 pb-24 print:block print:gap-0 print:pb-0">
         {rawCards.map((cardIndices, cardIdx) => {
-          const placements = getCardPlacements(cardIdx);
+          const placements = getCardPlacements(cardIdx, symbolsPerCard);
 
           return (
             <div

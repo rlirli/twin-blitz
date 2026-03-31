@@ -25,15 +25,16 @@ interface SymbolState {
   updateMaskData: (id: number, maskData: MaskPath[]) => void;
   removeSymbol: (id: number) => void;
   clearAll: () => void;
-  isComplete: () => boolean;
+  isComplete: (requiredCount: number) => boolean;
   getSourceImage: (id: number) => Promise<string | null>;
 }
 
-import { TOTAL_SYMBOLS } from "@/lib/constants";
-
 const DEFAULT_TRANSFORM: Transformation = { x: 0, y: 0, width: 0, height: 0, rotation: 0 };
 
-const INITIAL_SYMBOLS: SymbolData[] = Array.from({ length: TOTAL_SYMBOLS }, (_, i) => ({
+// Support up to Order 11 (133 symbols) + some buffer
+const MAX_POSSIBLE_SYMBOLS = 150;
+
+const INITIAL_SYMBOLS: SymbolData[] = Array.from({ length: MAX_POSSIBLE_SYMBOLS }, (_, i) => ({
   id: i,
   url: null,
   sourceId: null,
@@ -131,7 +132,10 @@ export const useSymbolStore = create<SymbolState>()(
         set({ symbols: INITIAL_SYMBOLS });
       },
 
-      isComplete: () => get().symbols.every((s) => s.url !== null),
+      isComplete: (requiredCount: number) => {
+        const activeSymbols = get().symbols.slice(0, requiredCount);
+        return activeSymbols.every((s) => s.url !== null);
+      },
 
       getSourceImage: async (id: number) => {
         const symbol = get().symbols.find((s) => s.id === id);
@@ -145,7 +149,25 @@ export const useSymbolStore = create<SymbolState>()(
       storage: createJSONStorage(() => localIndexedDbStorage),
       partialize: (state) => ({ symbols: state.symbols }),
       onRehydrateStorage: (state) => {
-        return () => {
+        return (rehydratedState, error) => {
+          if (rehydratedState && !error) {
+            // Migration: Ensure the array is padded to MAX_POSSIBLE_SYMBOLS
+            // This handles cases where users had fewer slots in their localStorage
+            const currentSymbols = rehydratedState.symbols || [];
+            if (currentSymbols.length < MAX_POSSIBLE_SYMBOLS) {
+              const paddingCount = MAX_POSSIBLE_SYMBOLS - currentSymbols.length;
+              const startId = currentSymbols.length;
+              const padding = Array.from({ length: paddingCount }, (_, i) => ({
+                id: startId + i,
+                url: null,
+                sourceId: null,
+                name: `Symbol ${startId + i + 1}`,
+                transformation: { ...DEFAULT_TRANSFORM },
+                maskData: [],
+              }));
+              rehydratedState.symbols = [...currentSymbols, ...padding];
+            }
+          }
           state.setHasHydrated(true);
         };
       },

@@ -1,6 +1,8 @@
+"use client";
+
 import React from "react";
 
-import { TOTAL_SYMBOLS } from "@/lib/constants";
+import { useDeckSettingsStore } from "@/store/use-settings-store";
 import { SymbolData } from "@/store/use-symbol-store";
 
 import { GameCard } from "./card-preview/game-card";
@@ -15,11 +17,13 @@ const DEMO_SYMBOLS: SymbolData[] = Array.from({ length: 16 }, (_, i) => ({
 }));
 
 export const HowItWorks: React.FC = () => {
+  const { totalSymbolCount } = useDeckSettingsStore();
+
   const steps = [
     {
       step: "01",
       title: "Upload your symbols",
-      desc: `Add ${TOTAL_SYMBOLS} images — photos, stickers, drawings, anything personal.`,
+      desc: `Add ${totalSymbolCount} images — photos, stickers, drawings, anything personal.`,
       visual: (
         <div className="relative h-full min-h-[6rem] w-full rounded-t-xl rounded-b-none bg-indigo-50/50 dark:bg-indigo-950/30">
           {[
@@ -64,6 +68,7 @@ export const HowItWorks: React.FC = () => {
               cardIdx={1}
               cardIndices={[5, 9, 10, 11, 12, 13, 14, 15]}
               symbols={DEMO_SYMBOLS}
+              symbolsPerCard={8}
               size={90}
               showShadow={true}
               showLabel={false}
@@ -76,6 +81,7 @@ export const HowItWorks: React.FC = () => {
               cardIdx={0}
               cardIndices={[0, 1, 2, 3, 4, 5, 6, 7]}
               symbols={DEMO_SYMBOLS}
+              symbolsPerCard={8}
               size={140}
               showShadow={true}
               showLabel={false}
@@ -99,6 +105,7 @@ export const HowItWorks: React.FC = () => {
                 cardIdx={1}
                 cardIndices={[5, 9, 10, 11, 12, 13, 14, 15]}
                 symbols={DEMO_SYMBOLS}
+                symbolsPerCard={8}
                 size={40}
                 showShadow={false}
                 showLabel={false}
@@ -115,6 +122,7 @@ export const HowItWorks: React.FC = () => {
                 cardIdx={0}
                 cardIndices={[0, 1, 2, 3, 4, 5, 6, 7]}
                 symbols={DEMO_SYMBOLS}
+                symbolsPerCard={8}
                 size={55}
                 showShadow={false}
                 showLabel={false}

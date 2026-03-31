@@ -49,7 +49,7 @@ Visit [http://localhost:3000](http://localhost:3000) to personalize your deck, t
 
 - [x] feat: Export as .zip of image files
 - [x] fix: "Load defaults" should not replace already filled slots
-- [ ] feat: Other deck sizes (p=3, p=5, etc.)
+- [x] feat: Other deck sizes (p=3, p=5, etc.)
 - [ ] feat: Additional default symbol sets
 - [ ] feat: Alternative print modes (4 cards per A4 page, etc.)
 - [ ] feat: Persistent database storage (+ Auth first)

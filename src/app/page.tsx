@@ -1,11 +1,15 @@
+"use client";
+
 import { CardPreview } from "@/components/card-preview";
 import { HowItWorks } from "@/components/how-it-works";
 import { PrintSection } from "@/components/print-section";
 import { AppLogo } from "@/components/shared";
 import { SymbolGrid } from "@/components/symbol-grid";
-import { TOTAL_SYMBOLS, TOTAL_CARDS } from "@/lib/constants";
+import { useDeckSettingsStore } from "@/store/use-settings-store";
 
 export default function Home() {
+  const { totalSymbolCount, totalCardCount } = useDeckSettingsStore();
+
   return (
     <main className="bg-background text-foreground min-h-screen px-6 py-12 pb-16">
       <div className="mx-auto max-w-6xl">
@@ -18,7 +22,7 @@ export default function Home() {
               </span>
               <AppLogo />
               <p className="text-muted-foreground mt-4 max-w-lg text-center text-lg leading-relaxed text-pretty">
-                Upload {TOTAL_SYMBOLS} personal images and get a ready-to-print{" "}
+                Upload {totalSymbolCount} personal images and get a ready-to-print{" "}
                 <strong className="text-foreground font-bold">matching card game</strong> where
                 every pair of cards shares exactly one symbol — a truly unique handmade gift.
               </p>
@@ -27,7 +31,7 @@ export default function Home() {
 
           <div className="flex hidden flex-wrap gap-2">
             {[
-              `${TOTAL_SYMBOLS} symbols · ${TOTAL_CARDS} cards`,
+              `${totalSymbolCount} symbols · ${totalCardCount} cards`,
               "Custom images",
               "Print-ready",
               "Perfect handmade gift",

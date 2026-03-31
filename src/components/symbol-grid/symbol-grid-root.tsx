@@ -1,16 +1,16 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useMemo } from "react";
 
 import * as LucideIcons from "lucide-react";
 
-import { TOTAL_SYMBOLS } from "@/lib/constants";
 import { cn } from "@/lib/utils/cn";
 import {
   lucideIconToImageUrl,
   compressImage,
   normalizeSourceImage,
 } from "@/lib/utils/image-processing";
+import { useDeckSettingsStore } from "@/store/use-settings-store";
 import { useSymbolStore } from "@/store/use-symbol-store";
 
 import { ImageEditor } from "../image-editor/image-editor";
@@ -18,22 +18,34 @@ import { BulkErrorDialog, BulkErrorData } from "./bulk-error-dialog";
 import { GridHeader } from "./grid-header";
 import { SymbolSlot } from "./symbol-slot";
 
-const LUCIDE_ICON_NAMES = Object.keys(LucideIcons)
-  .filter(
-    (key) =>
-      key !== "createLucideIcon" &&
-      !key.endsWith("Icon") && // Filter out duplicate names with "Icon" suffix
-      (typeof (LucideIcons as any)[key] === "function" ||
-        typeof (LucideIcons as any)[key] === "object") &&
-      /^[A-Z]/.test(key),
-  )
-  .slice(0, TOTAL_SYMBOLS);
-
 export const SymbolGrid: React.FC = () => {
+  const { totalSymbolCount } = useDeckSettingsStore();
   const { symbols, setSymbolWithSource, removeSymbol, clearAll } = useSymbolStore();
+
+  const activeSymbols = useMemo(
+    () => symbols.slice(0, totalSymbolCount),
+    [symbols, totalSymbolCount],
+  );
+
+  const lucideIconNames = useMemo(
+    () =>
+      Object.keys(LucideIcons)
+        .filter(
+          (key) =>
+            key !== "createLucideIcon" &&
+            !key.endsWith("Icon") &&
+            (typeof (LucideIcons as any)[key] === "function" ||
+              typeof (LucideIcons as any)[key] === "object") &&
+            /^[A-Z]/.test(key),
+        )
+        .slice(0, totalSymbolCount),
+    [totalSymbolCount],
+  );
+
   const bulkInputRef = useRef<HTMLInputElement>(null);
   const [bulkError, setBulkError] = useState<BulkErrorData | null>(null);
-  const [isBulkLoading, setIsBulkLoading] = useState(false);
+  const [isBulkUploading, setIsBulkUploading] = useState(false);
+  const [isDefaultLoading, setIsDefaultLoading] = useState(false);
   const [editingSlotId, setEditingSlotId] = useState<number | null>(null);
   const [focusedSlotId, setFocusedSlotId] = useState<number | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -51,7 +63,6 @@ export const SymbolGrid: React.FC = () => {
       if (err.name === "QuotaExceededError" || err.message?.includes("quota")) {
         setBulkError({ type: "quota" });
       } else {
-        // Fallback for non-WebP browsers or other issues
         const reader = new FileReader();
         reader.onload = async (event) => {
           if (event.target?.result) {
@@ -69,7 +80,7 @@ export const SymbolGrid: React.FC = () => {
     const files = Array.from(e.target.files ?? []);
     if (files.length === 0) return;
 
-    const emptySlots = symbols.filter((s) => s.url === null);
+    const emptySlots = activeSymbols.filter((s) => s.url === null);
     const available = emptySlots.length;
 
     if (files.length > available) {
@@ -78,7 +89,7 @@ export const SymbolGrid: React.FC = () => {
       return;
     }
 
-    setIsBulkLoading(true);
+    setIsBulkUploading(true);
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -91,28 +102,27 @@ export const SymbolGrid: React.FC = () => {
         setBulkError({ type: "quota" });
       }
     } finally {
-      setIsBulkLoading(false);
+      setIsBulkUploading(false);
       if (bulkInputRef.current) bulkInputRef.current.value = "";
     }
   };
 
   const loadDefaults = async () => {
-    setIsBulkLoading(true);
+    setIsDefaultLoading(true);
     try {
-      const emptySlots = symbols.filter((s) => s.url === null);
+      const emptySlots = activeSymbols.filter((s) => s.url === null);
       for (const slot of emptySlots) {
-        const name = LUCIDE_ICON_NAMES[slot.id];
+        const name = lucideIconNames[slot.id];
         if (!name) continue;
         const imageUrl = await lucideIconToImageUrl(LucideIcons as any, name);
-        // For icons, preview and source are the same for now
         await setSymbolWithSource(slot.id, imageUrl, imageUrl);
       }
     } finally {
-      setIsBulkLoading(false);
+      setIsDefaultLoading(false);
     }
   };
 
-  const emptyCount = symbols.filter((s) => s.url === null).length;
+  const emptyCount = activeSymbols.filter((s) => s.url === null).length;
 
   return (
     <div className="bg-card border-border mb-6 rounded-2xl border pt-6 pb-1 shadow-[0_4px_24px_rgba(0,0,0,0.05)]">
@@ -126,7 +136,8 @@ export const SymbolGrid: React.FC = () => {
         onBulkUpload={handleBulkUpload}
         onLoadDefaults={loadDefaults}
         onClearAll={clearAll}
-        isBulkLoading={isBulkLoading}
+        isBulkUploading={isBulkUploading}
+        isDefaultLoading={isDefaultLoading}
         emptyCount={emptyCount}
         bulkInputRef={bulkInputRef}
         className="px-8"
@@ -141,7 +152,7 @@ export const SymbolGrid: React.FC = () => {
               : "max-h-[50000px]",
           )}
         >
-          {symbols.map((symbol) => (
+          {activeSymbols.map((symbol) => (
             <SymbolSlot
               key={symbol.id}
               symbol={symbol}
@@ -180,7 +191,7 @@ export const SymbolGrid: React.FC = () => {
           ) : (
             <>
               <LucideIcons.ChevronDown size={20} />
-              Show All {TOTAL_SYMBOLS} Symbols
+              Show All {totalSymbolCount} Symbols
             </>
           )}
         </button>

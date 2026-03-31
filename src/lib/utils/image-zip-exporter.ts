@@ -27,6 +27,7 @@ async function renderCardToCanvas(
   cardIdx: number,
   symbolIndices: number[],
   symbols: SymbolData[],
+  symbolsPerCard: number,
   paperSize: "9x13" | "10x15" | "13x18",
 ): Promise<HTMLCanvasElement> {
   const { w, h } = PAPER_DIMENSIONS[paperSize];
@@ -56,14 +57,16 @@ async function renderCardToCanvas(
   ctx.stroke();
 
   // 3. Draw symbols at their relative positions using the centralized layout engine
-  const placements = getCardPlacements(cardIdx);
+  const placements = getCardPlacements(cardIdx, symbolsPerCard);
 
   for (let i = 0; i < symbolIndices.length; i++) {
     const symbolIdx = symbolIndices[i];
     const symbol = symbols[symbolIdx];
-    if (!symbol.url) continue;
+    if (!symbol?.url) continue;
 
     const placement = placements[i];
+    if (!placement) continue;
+
     const rotationRad = placement.rotation * (Math.PI / 180);
 
     // Calculate absolute symbol center relative to the 84mm card area
@@ -106,11 +109,24 @@ function drawRotatedImage(
       ctx.translate(x, y);
       ctx.rotate(angleRad);
 
-      // Base size for symbols is roughly 15mm in print (around 180px at 300dpi)
+      // Base size for symbols is roughly 16mm in print (around 190px at 300dpi)
       const baseSize = Math.round((16 / MM_TO_INCH) * DPI);
-      const drawSize = baseSize * scale;
+      const maxSize = baseSize * scale;
 
-      ctx.drawImage(img, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
+      const imgWidth = img.width;
+      const imgHeight = img.height;
+      const aspectRatio = imgWidth / imgHeight;
+
+      let drawWidth, drawHeight;
+      if (aspectRatio > 1) {
+        drawWidth = maxSize;
+        drawHeight = maxSize / aspectRatio;
+      } else {
+        drawWidth = maxSize * aspectRatio;
+        drawHeight = maxSize;
+      }
+
+      ctx.drawImage(img, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
       ctx.restore();
       resolve();
     };
@@ -125,6 +141,7 @@ function drawRotatedImage(
 export async function exportCardsToZip(
   rawCards: number[][],
   symbols: SymbolData[],
+  symbolsPerCard: number,
   paperSize: "9x13" | "10x15" | "13x18",
   onProgress?: (count: number) => void,
 ): Promise<Blob> {
@@ -132,7 +149,7 @@ export async function exportCardsToZip(
   const folder = zip.folder(`twin-blitz-cards-${paperSize}cm`);
 
   for (let i = 0; i < rawCards.length; i++) {
-    const canvas = await renderCardToCanvas(i, rawCards[i], symbols, paperSize);
+    const canvas = await renderCardToCanvas(i, rawCards[i], symbols, symbolsPerCard, paperSize);
 
     // Get as blob
     const blob = await new Promise<Blob>((resolve) => {

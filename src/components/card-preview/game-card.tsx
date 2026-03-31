@@ -10,6 +10,7 @@ interface GameCardProps {
   cardIdx: number;
   cardIndices: number[];
   symbols: SymbolData[];
+  symbolsPerCard: number;
   size?: number;
   showShadow?: boolean;
   showLabel?: boolean;
@@ -21,13 +22,17 @@ export const GameCard: React.FC<GameCardProps> = ({
   cardIdx,
   cardIndices,
   symbols,
+  symbolsPerCard,
   size = 250,
   showShadow = true,
   showLabel = true,
   interactive = true,
   className,
 }) => {
-  const placements = React.useMemo(() => getCardPlacements(cardIdx), [cardIdx]);
+  const placements = React.useMemo(
+    () => getCardPlacements(cardIdx, symbolsPerCard),
+    [cardIdx, symbolsPerCard],
+  );
 
   return (
     <div
@@ -51,11 +56,14 @@ export const GameCard: React.FC<GameCardProps> = ({
         const symbol = symbols[symbolIdx];
         const placement = placements[i];
 
+        // Safety check: both placement AND symbol data must exist
+        if (!placement) return null;
+
         return (
           <CardSymbol
             key={symbolIdx}
             symbolIdx={symbolIdx}
-            url={symbol.url}
+            url={symbol?.url || null}
             relativeSize={20} // 20% of card size
             placement={
               {
