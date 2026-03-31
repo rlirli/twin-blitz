@@ -2,8 +2,8 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ "main" ] # Automatic on every push
-  workflow_dispatch:      # Allows manual trigger
+    branches: ["main"] # Automatic on every push
+  workflow_dispatch: # Allows manual trigger
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
