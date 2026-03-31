@@ -54,3 +54,39 @@ export async function maskToPNG(mask: Mask): Promise<string> {
     reader.readAsDataURL(decodedBlob);
   });
 }
+/**
+ * Rescales a mask to a new width and height using an OffscreenCanvas.
+ */
+export async function rescaleMask(
+  mask: Mask,
+  targetWidth: number,
+  targetHeight: number,
+): Promise<Mask> {
+  if (mask.width === targetWidth && mask.height === targetHeight) return mask;
+
+  const canvas = new OffscreenCanvas(mask.width, mask.height);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not get 2d context for OffscreenCanvas");
+
+  const imageData = maskToImageData(mask);
+  ctx.putImageData(imageData, 0, 0);
+
+  const outCanvas = new OffscreenCanvas(targetWidth, targetHeight);
+  const outCtx = outCanvas.getContext("2d");
+  if (!outCtx) throw new Error("Could not get 2d context for OffscreenCanvas");
+
+  outCtx.imageSmoothingEnabled = false; // Keep it crisp or true for smooth? Usually false for masks but true might be better for SAM outputs.
+  outCtx.drawImage(canvas, 0, 0, targetWidth, targetHeight);
+
+  const outImageData = outCtx.getImageData(0, 0, targetWidth, targetHeight).data;
+  const alpha = new Uint8Array(targetWidth * targetHeight);
+  for (let i = 0; i < alpha.length; i++) {
+    alpha[i] = outImageData[i * 4 + 3];
+  }
+
+  return {
+    width: targetWidth,
+    height: targetHeight,
+    alpha,
+  };
+}

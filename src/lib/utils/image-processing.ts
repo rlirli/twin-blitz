@@ -189,6 +189,9 @@ export function drawMaskPaths(ctx: CanvasRenderingContext2D, maskPaths: MaskPath
       const [x, y, w, h] = path.points;
       ctx.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2);
       ctx.fill();
+    } else if (path.tool === "ai") {
+      // AI masks are handled separately in generateSticker/Async drawing
+      // because they are now B-space (workspace relative).
     }
   });
 }
@@ -203,9 +206,12 @@ export async function drawMaskPathsAsync(ctx: CanvasRenderingContext2D, maskPath
     if (path.tool === "ai" && path.maskDataUrl) {
       const img = new Image();
       img.src = path.maskDataUrl;
-      await new Promise((resolve) => (img.onload = resolve));
+      await new Promise((resolve) => {
+        img.onload = resolve;
+        img.onerror = resolve; // Continue even if one fails
+      });
       ctx.drawImage(img, 0, 0);
-    } else {
+    } else if (path.tool !== "ai") {
       drawMaskPaths(ctx, [path]);
     }
   }
@@ -225,17 +231,15 @@ export async function generateSticker(
     img.onload = () => {
       const { width: sw, height: sh } = img;
 
-      // 1. Create source-sized canvas for masking
+      // 1. Create source-sized canvas for A-space masking (Manual tools)
       const sourceCanvas = document.createElement("canvas");
       sourceCanvas.width = sw;
       sourceCanvas.height = sh;
       const sCtx = sourceCanvas.getContext("2d");
       if (!sCtx) return reject(new Error("Source context unavailable"));
 
-      const continueStickerGen = () => {
-        // 3. Apply Transformation (Rotation + Crop)
-        // The goal: the final sticker is the UPRIGHT version of the rotated crop window.
-        // We use a Center-Pivot strategy: Any rotation in the UI happens about the crop's center.
+      const continueStickerGen = async () => {
+        // 3. Create Upright Cropped Workspace (B-space)
         const transformCanvas = document.createElement("canvas");
         const cropW = transformation.width || sw;
         const cropH = transformation.height || sh;
@@ -254,10 +258,17 @@ export async function generateSticker(
         tCtx.translate(-(transformation.x + cropW / 2), -(transformation.y + cropH / 2));
         tCtx.drawImage(sourceCanvas, 0, 0);
 
-        // 4. Tight Bounding Box
+        // 4. Apply B-space Masks (AI)
+        // Since AI masks were generated from the B-space crop, we apply them here.
+        const aiMasks = maskPaths.filter((p) => p.tool === "ai");
+        if (aiMasks.length > 0) {
+          await drawMaskPathsAsync(tCtx, aiMasks);
+        }
+
+        // 5. Tight Bounding Box
         const [bx, by, bw, bh] = getTightBoundingBox(transformCanvas);
 
-        // 5. Final 300px scale down
+        // 6. Final 300px scale down
         const finalCanvas = document.createElement("canvas");
         const scale = Math.min(SYMBOL_STORAGE_SIZE_PX / bw, SYMBOL_STORAGE_SIZE_PX / bh, 1);
         finalCanvas.width = bw * scale;
@@ -282,10 +293,11 @@ export async function generateSticker(
         resolve(finalCanvas.toDataURL("image/webp", SYMBOL_STORAGE_QUALITY));
       };
 
-      // 2. Draw mask
-      if (maskPaths.length > 0) {
+      // 2. Draw A-space Masks (Manual Tools)
+      const manualMasks = maskPaths.filter((p) => p.tool !== "ai");
+      if (manualMasks.length > 0) {
         sCtx.fillStyle = "white";
-        drawMaskPathsAsync(sCtx, maskPaths).then(() => {
+        drawMaskPathsAsync(sCtx, manualMasks).then(() => {
           sCtx.globalCompositeOperation = "source-in";
           sCtx.drawImage(img, 0, 0);
           continueStickerGen();

@@ -8,7 +8,7 @@ import * as ort from "onnxruntime-web";
 
 import { getEmbeddingKey } from "../../core/utils/embedding-utils";
 import { imageToTensor, scaleImage } from "../../core/utils/image-utils";
-import { Mask } from "../../core/utils/mask-utils";
+import { Mask, rescaleMask } from "../../core/utils/mask-utils";
 import { Point, SegmentationModel, ModelMetadata } from "../segmentation-model";
 
 export class EfficientViTSAMModel implements SegmentationModel {
@@ -51,8 +51,9 @@ export class EfficientViTSAMModel implements SegmentationModel {
     const existing = await get(embeddingKey);
     if (existing) return embeddingKey;
 
-    // 2. Preprocess: Downscale to model-specific resolution
+    // 2. Preprocess: Resize and STRETCH to a square target resolution (required for simple ONNX export)
     const res = this.metadata.targetResolution;
+    // Note: We use scaleImage but it should definitely stretch if given square res.
     const scaled = await scaleImage(image, res, res);
     const tensorData = await imageToTensor(scaled);
 
@@ -62,12 +63,15 @@ export class EfficientViTSAMModel implements SegmentationModel {
     const inputName = this.encoderSession.inputNames[0];
     const results = await this.encoderSession.run({ [inputName]: inputTensor });
 
-    // Dynamically resolve output key (could be 'image_embeddings' or similar)
     const outputName = this.encoderSession.outputNames[0];
     const embeddings = results[outputName].data as Float32Array;
 
-    // 4. Store result
-    await set(embeddingKey, embeddings);
+    // 4. Store result WITH original dimensions for back-scaling in decode
+    await set(embeddingKey, {
+      embeddings,
+      originalWidth: image.width,
+      originalHeight: image.height,
+    });
 
     return embeddingKey;
   }
@@ -76,27 +80,28 @@ export class EfficientViTSAMModel implements SegmentationModel {
     if (!this.decoderSession) throw new Error("Decoder session not initialized");
 
     // 1. Fetch embeddings
-    const embeddingArray = await get(embeddingKey);
-    if (!embeddingArray) throw new Error("Embeddings not found in IndexedDB");
+    const entry = await get(embeddingKey);
+    if (!entry) throw new Error("Embeddings not found in IndexedDB");
+
+    const { embeddings: embeddingArray, originalWidth, originalHeight } = entry;
 
     const embeddings = new ort.Tensor("float32", embeddingArray, [1, 256, 64, 64]);
 
-    // 2. Prepare Clicks
+    // 2. Prepare Clicks: Use relative coordinates (0-1) scaled to model internal resolution
+    // We assume 'points' passed to us are now relative (x/w, y/h)
+    const res = this.metadata.targetResolution;
+
     const pointCoords = new ort.Tensor(
       "float32",
-      new Float32Array(points.map((p) => [p.x, p.y]).flat()),
+      new Float32Array(points.map((p) => [p.x * res, p.y * res]).flat()),
       [1, points.length, 2],
     );
+
     const pointLabels = new ort.Tensor(
       "float32",
       new Float32Array(points.map((p) => (p.positive ? 1 : 0))),
       [1, points.length],
     );
-
-    const res = this.metadata.targetResolution;
-    const maskInput = new ort.Tensor("float32", new Float32Array(256 * 256), [1, 1, 256, 256]);
-    const hasMaskInput = new ort.Tensor("float32", new Float32Array([0]), [1]);
-    const origImSize = new ort.Tensor("float32", new Float32Array([res, res]), [2]);
 
     const inputs: any = {};
     const inputNames = this.decoderSession.inputNames;
@@ -105,29 +110,44 @@ export class EfficientViTSAMModel implements SegmentationModel {
     if (inputNames.includes("point_coords")) inputs.point_coords = pointCoords;
     if (inputNames.includes("point_labels")) inputs.point_labels = pointLabels;
 
-    // The following are not part of L0 input (other variants not yet checked)
-    if (inputNames.includes("mask_input")) inputs.mask_input = maskInput;
-    if (inputNames.includes("has_mask_input")) inputs.has_mask_input = hasMaskInput;
-    if (inputNames.includes("orig_im_size")) inputs.orig_im_size = origImSize;
+    // Optional inputs found in some larger SAM models (optional for L0/L1)
+    if (inputNames.includes("mask_input")) {
+      inputs.mask_input = new ort.Tensor("float32", new Float32Array(256 * 256), [1, 1, 256, 256]);
+    }
+    if (inputNames.includes("has_mask_input")) {
+      inputs.has_mask_input = new ort.Tensor("float32", new Float32Array([0]), [1]);
+    }
+    if (inputNames.includes("orig_im_size")) {
+      inputs.orig_im_size = new ort.Tensor("float32", new Float32Array([res, res]), [2]);
+    }
 
     // 4. Decoder Inference
     const results = await this.decoderSession.run(inputs);
 
-    // Resolve output (usually 'masks')
     const outputName = this.decoderSession.outputNames[0];
-    const maskData = results[outputName].data as Float32Array;
+    const maskTensor = results[outputName];
+    const maskData = maskTensor.data as Float32Array;
 
-    // 5. Binary Thresholding (as per plan alpha >= 128)
-    const alpha = new Uint8Array(res * res);
-    for (let i = 0; i < maskData.length; i++) {
+    // Resolve output shape: usually [1, 4, H_out, W_out] or [1, 1, H_out, W_out]
+    const dims = maskTensor.dims;
+    const outH = dims[2];
+    const outW = dims[3];
+    const maskSize = outH * outW;
+
+    // 5. Binary Thresholding
+    const alpha = new Uint8Array(maskSize);
+    for (let i = 0; i < maskSize; i++) {
       alpha[i] = maskData[i] > 0 ? 255 : 0;
     }
 
-    return {
-      width: res,
-      height: res,
+    const rawMask = {
+      width: outW,
+      height: outH,
       alpha,
     };
+
+    // 6. Rescale back to original image resolution (e.g. crop dimensions)
+    return await rescaleMask(rawMask, originalWidth, originalHeight);
   }
 
   dispose(): void {

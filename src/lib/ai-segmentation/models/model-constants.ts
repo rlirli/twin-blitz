@@ -7,7 +7,8 @@ export type ModelId =
   | "EFFICIENTVIT_L1"
   | "EFFICIENTVIT_L2"
   | "EFFICIENTVIT_XL0"
-  | "EFFICIENTVIT_XL1";
+  | "EFFICIENTVIT_XL1"
+  | "SAM2_HIERA_TINY";
 
 export interface ModelInfo {
   id: ModelId;
@@ -73,6 +74,15 @@ export const AVAILABLE_MODELS: Record<ModelId, ModelInfo> = {
     decoderUrl:
       "https://huggingface.co/mit-han-lab/efficientvit-sam/resolve/main/onnx/xl1_decoder.onnx",
     sizeMB: 813.5,
+    targetResolution: 1024,
+  },
+  SAM2_HIERA_TINY: {
+    id: "SAM2_HIERA_TINY",
+    name: "Segment Anything 2.1 (Hiera-Tiny)",
+    version: "20260221",
+    encoderUrl: "/models/sam2/sam2.1_hiera_tiny.encoder.onnx",
+    decoderUrl: "/models/sam2/sam2.1_hiera_tiny.decoder.onnx",
+    sizeMB: 39, // Approximate size for Hiera-Tiny
     targetResolution: 1024,
   },
 };

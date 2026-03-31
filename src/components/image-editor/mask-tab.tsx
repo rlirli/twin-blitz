@@ -28,13 +28,9 @@ import {
   maskToPNG,
   Mask,
 } from "@/lib/ai-segmentation";
+import { logDebugImage } from "@/lib/ai-segmentation/core/utils/debug-utils";
 import { cn } from "@/lib/utils/cn";
-import {
-  Transformation,
-  MaskPath,
-  transformMaskData,
-  transformPointB2A,
-} from "@/lib/utils/image-processing";
+import { Transformation, MaskPath, transformMaskData } from "@/lib/utils/image-processing";
 
 interface MaskTabProps {
   sourceUrl: string;
@@ -75,6 +71,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
   const [lastAIInput, setLastAIInput] = useState<ImageBitmap | null>(null);
   const [lastAIOutput, setLastAIOutput] = useState<Mask | null>(null);
   const [aiEmbeddingKey, setAiEmbeddingKey] = useState<string | null>(null);
+  const [lastRelClick, setLastRelClick] = useState<{ x: number; y: number } | null>(null);
 
   // Local state for workspace-relative masks (B-space)
   // This allows us to work UPRIGHT and AXIS-ALIGNED easily.
@@ -127,8 +124,21 @@ export const MaskTab: React.FC<MaskTabProps> = ({
 
     let isCancelled = false;
     const triggerEncoding = async () => {
-      // 1. Create a bitmap of the full source image for the AI
-      const bitmap = await createImageBitmap(img);
+      // 1. Create a bitmap of the current CROP for the AI
+      const cropW = transformation.width || img.width;
+      const cropH = transformation.height || img.height;
+      const canvas = new OffscreenCanvas(cropW, cropH);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      // Replicate the B-space upright crop
+      ctx.translate(cropW / 2, cropH / 2);
+      ctx.rotate((-transformation.rotation * Math.PI) / 180);
+      ctx.translate(-(transformation.x + cropW / 2), -(transformation.y + cropH / 2));
+      ctx.drawImage(img, 0, 0);
+
+      const bitmap = canvas.transferToImageBitmap();
+      logDebugImage(bitmap, "from MaskTap");
       if (isCancelled) return;
 
       const hash = await hashImage(bitmap);
@@ -145,7 +155,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
     return () => {
       isCancelled = true;
     };
-  }, [img, currentModel, encodeImage]);
+  }, [img, currentModel, encodeImage, transformation]);
 
   const MASK_OVERLAY_COLOR = "rgba(0, 0, 0, 0.8)";
   const cropW = transformation.width || (img?.width ?? 0);
@@ -205,31 +215,44 @@ export const MaskTab: React.FC<MaskTabProps> = ({
   const handleAIClick = async () => {
     if (!groupRef.current || !aiEmbeddingKey) return;
 
+    // Use B-space position directly (no transformPointB2A needed as input is now the crop)
     const pos = groupRef.current.getRelativePointerPosition();
-    // 1. Transform B-space (workspace) to A-space (raw image)
-    const [ax, ay] = transformPointB2A(pos.x, pos.y, transformation);
+    console.log("[handleAIClick] pos", pos);
+
+    // Calculate relative points (0 to 1)
+    const relX = pos.x / cropW;
+    const relY = pos.y / cropH;
+
+    // Boundary check
+    if (relX < 0 || relX > 1 || relY < 0 || relY > 1) {
+      console.warn("Click outside image bounds", { relX, relY });
+      return;
+    }
 
     setIsAISegmenting(true);
+    setLastRelClick({ x: relX, y: relY });
     try {
       const mask = await decodePoints(aiEmbeddingKey, [
-        { x: ax, y: ay, positive: mode !== "subtract" },
+        { x: relX, y: relY, positive: mode !== "subtract" },
       ]);
       setLastAIOutput(mask);
 
       // 2. Convert mask to PNG for storage
       const dataUrl = await maskToPNG(mask);
 
-      // 3. Create new MaskPath
+      // 3. Create new MaskPath (stored in B-space coordinates)
+      // Note: We store the absolute pos for the UI rendering, but the model got relative
       const newPath: MaskPath = {
         tool: "ai",
         mode,
-        points: [ax, ay], // Store the seed point
+        points: [pos.x, pos.y],
         maskDataUrl: dataUrl,
       };
 
       const newLocalMask = mode === "replace" ? [newPath] : [...localMaskData, newPath];
       setLocalMaskData(newLocalMask);
 
+      // Sync back to parent
       const backTransformed = transformMaskData(newLocalMask, transformation, "B2A");
       onUpdateMask(backTransformed);
     } catch (err) {
@@ -526,7 +549,12 @@ export const MaskTab: React.FC<MaskTabProps> = ({
                 */}
                 <Group ref={cutterRef} globalCompositeOperation="destination-out">
                   {localMaskData.map((path, i) => (
-                    <MaskShape key={i} path={path} isPreview={false} />
+                    <MaskShape
+                      key={i}
+                      path={path}
+                      isPreview={false}
+                      transformation={transformation}
+                    />
                   ))}
                 </Group>
 
@@ -542,6 +570,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
                     compositeOverride={mode === "subtract" ? "source-over" : "destination-out"}
                     fillOverride={mode === "subtract" ? MASK_OVERLAY_COLOR : "white"}
                     strokeOverride={mode === "subtract" ? MASK_OVERLAY_COLOR : "white"}
+                    transformation={transformation}
                   />
                 )}
 
@@ -573,6 +602,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
           inputImage={lastAIInput}
           outputMask={lastAIOutput}
           isProcessing={isAISegmenting}
+          lastRelClick={lastRelClick}
           onClose={() => setShowDebug(false)}
         />
       )}
@@ -586,6 +616,7 @@ function MaskShape({
   fillOverride,
   strokeOverride,
   compositeOverride,
+  transformation,
   isGeometricOutlineOnly = false,
 }: any) {
   const isGeometricPreview = isPreview && (path.tool !== "brush" || isGeometricOutlineOnly);
@@ -643,7 +674,7 @@ function MaskShape({
   }
 
   if (path.tool === "ai" && path.maskDataUrl) {
-    return <AIMaskShape path={path} commonProps={commonProps} />;
+    return <AIMaskShape path={path} commonProps={commonProps} transformation={transformation} />;
   }
 
   return null;
@@ -653,6 +684,8 @@ function AIMaskShape({ path, commonProps }: any) {
   const [maskImg] = useImage(path.maskDataUrl);
   if (!maskImg) return null;
 
+  // Since the AI input was the cropped B-space bitmap,
+  // the output mask is already perfectly aligned with the crop workspace.
   return (
     <KonvaImage
       image={maskImg}
@@ -661,8 +694,8 @@ function AIMaskShape({ path, commonProps }: any) {
       width={maskImg.width}
       height={maskImg.height}
       {...commonProps}
-      fill={undefined} // Images don't use fill
-      stroke={undefined} // Images don't use stroke
+      fill={undefined}
+      stroke={undefined}
     />
   );
 }

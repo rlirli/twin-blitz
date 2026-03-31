@@ -8,6 +8,7 @@ interface AISegmentationDebugWindowProps {
   inputImage: ImageBitmap | null;
   outputMask: Mask | null;
   isProcessing: boolean;
+  lastRelClick?: { x: number; y: number } | null;
   onClose: () => void;
 }
 
@@ -15,6 +16,7 @@ export const AISegmentationDebugWindow: React.FC<AISegmentationDebugWindowProps>
   inputImage,
   outputMask,
   isProcessing,
+  lastRelClick,
   onClose,
 }) => {
   const [inputUrl, setInputUrl] = React.useState<string | null>(null);
@@ -27,9 +29,44 @@ export const AISegmentationDebugWindow: React.FC<AISegmentationDebugWindowProps>
     }
     const canvas = new OffscreenCanvas(inputImage.width, inputImage.height);
     const ctx = canvas.getContext("2d");
-    ctx?.drawImage(inputImage, 0, 0);
+    if (!ctx) return;
+
+    ctx.drawImage(inputImage, 0, 0);
+
+    // Overlay click if exists
+    if (lastRelClick) {
+      const x = lastRelClick.x * inputImage.width;
+      const y = lastRelClick.y * inputImage.height;
+
+      // 1. Crosshair lines (High contrast & Massive)
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+      ctx.lineWidth = 10;
+      const crossSize = 100; // Much larger
+
+      ctx.beginPath();
+      ctx.moveTo(x - crossSize, y);
+      ctx.lineTo(x + crossSize, y);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(x, y - crossSize);
+      ctx.lineTo(x, y + crossSize);
+      ctx.stroke();
+
+      // 2. The Dot (Massive)
+      ctx.fillStyle = "#ef4444"; // rose-500
+      ctx.strokeStyle = "white";
+      ctx.lineWidth = 12;
+      const radius = 40; // Double the previous size
+
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
     canvas.convertToBlob().then((blob) => setInputUrl(URL.createObjectURL(blob)));
-  }, [inputImage]);
+  }, [inputImage, lastRelClick]);
 
   React.useEffect(() => {
     if (!outputMask) {

@@ -9,12 +9,14 @@ import { DecoderMessage } from "./protocol";
 
 let activeModel: SegmentationModel | null = null;
 let activeDecodeId = 0;
+let isBusy = false;
 
 self.onmessage = async (e: MessageEvent<DecoderMessage>) => {
   const msg = e.data;
 
   if (msg.type === "LOAD_MODEL") {
     try {
+      isBusy = true;
       activeModel?.dispose();
       activeModel = ModelFactory.create(msg.modelId);
 
@@ -23,6 +25,8 @@ self.onmessage = async (e: MessageEvent<DecoderMessage>) => {
       self.postMessage({ type: "LOADED" });
     } catch (err: any) {
       self.postMessage({ type: "ERROR", message: `Failed to load model: ${err.message}` });
+    } finally {
+      isBusy = false;
     }
   } else if (msg.type === "DECODE") {
     if (!activeModel) {
@@ -30,6 +34,12 @@ self.onmessage = async (e: MessageEvent<DecoderMessage>) => {
       return;
     }
 
+    if (isBusy) {
+      // Ignore click prompts while the model is currently decoding.
+      return;
+    }
+
+    isBusy = true;
     const decodeId = ++activeDecodeId;
 
     try {
@@ -41,6 +51,8 @@ self.onmessage = async (e: MessageEvent<DecoderMessage>) => {
       if (decodeId === activeDecodeId) {
         self.postMessage({ type: "ERROR", message: `Decoding failed: ${err.message}` });
       }
+    } finally {
+      isBusy = false;
     }
   } else if (msg.type === "DISPOSE") {
     activeModel?.dispose();

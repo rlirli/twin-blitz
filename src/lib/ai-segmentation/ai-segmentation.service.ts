@@ -21,6 +21,7 @@ class AISegmentationService {
   private encoderWorker: Worker | null = null;
   private decoderWorker: Worker | null = null;
   private currentModel: ModelInfo | null = null;
+  private loadingModelId: ModelId | null = null;
   private loadingPromise: Promise<void> | null = null;
 
   constructor() {
@@ -100,69 +101,82 @@ class AISegmentationService {
   }
 
   /**
-   * Loads the specified model into memory.
+   * Loads a model into memory. Handles potential race conditions.
    */
   async loadModel(
     modelId: ModelId,
     onProgress?: (progress: DownloadProgress) => void,
   ): Promise<void> {
     if (this.currentModel?.id === modelId) return;
-    this.ensureWorkers();
+
+    // Return existing promise if already loading same model
+    if (this.loadingModelId === modelId && this.loadingPromise) {
+      return this.loadingPromise;
+    }
+
+    if (this.loadingPromise) {
+      throw new Error(`Already loading ${this.loadingModelId}. Please wait.`);
+    }
 
     const model = AVAILABLE_MODELS[modelId];
+    if (!model) throw new Error(`Model ${modelId} not found`);
 
-    let encLoaded = 0,
-      encTotal = 0;
-    let decLoaded = 0,
-      decTotal = 0;
-
-    const isCached = await this.isModelCached(modelId);
-
-    const reportProgress = () => {
-      if (!onProgress || isCached) return;
-      const total = encTotal + decTotal;
-      const loaded = encLoaded + decLoaded;
-      if (total > 0) {
-        onProgress({
-          loaded,
-          total,
-          percent: Math.round((loaded / total) * 100),
-        });
-      }
-    };
-
+    this.ensureWorkers();
+    this.loadingModelId = modelId;
     this.loadingPromise = (async () => {
-      const [encData, decData] = await Promise.all([
-        this.fetchAndCacheModel(model.encoderUrl, (l, t) => {
-          encLoaded = l;
-          encTotal = t;
-          reportProgress();
-        }),
-        this.fetchAndCacheModel(model.decoderUrl, (l, t) => {
-          decLoaded = l;
-          decTotal = t;
-          reportProgress();
-        }),
-      ]);
+      try {
+        let encoderLoadedBytes = 0;
+        let encoderTotalBytes = 0;
+        let decoderLoadedBytes = 0;
+        let decoderTotalBytes = 0;
 
-      await Promise.all([
-        this.sendMessageToWorker<EncoderResponse>(this.encoderWorker!, {
-          type: "LOAD_MODEL",
-          modelId,
-          modelData: encData,
-        }),
-        this.sendMessageToWorker<DecoderResponse>(this.decoderWorker!, {
-          type: "LOAD_MODEL",
-          modelId,
-          modelData: decData,
-        }),
-      ]);
+        const updateProgress = () => {
+          if (onProgress && encoderTotalBytes && decoderTotalBytes) {
+            const total = encoderTotalBytes + decoderTotalBytes;
+            const loaded = encoderLoadedBytes + decoderLoadedBytes;
+            onProgress({ loaded, total, percent: Math.round((loaded / total) * 100) });
+          }
+        };
 
-      this.currentModel = model;
-      localStorage.setItem("last-ai-model-id", modelId);
+        const [encData, decData] = await Promise.all([
+          this.fetchAndCacheModel(model.encoderUrl, (loaded, total) => {
+            encoderLoadedBytes = loaded;
+            encoderTotalBytes = total;
+            updateProgress();
+          }),
+          this.fetchAndCacheModel(model.decoderUrl, (loaded, total) => {
+            decoderLoadedBytes = loaded;
+            decoderTotalBytes = total;
+            updateProgress();
+          }),
+        ]);
+
+        await Promise.all([
+          this.sendMessageToWorker(this.encoderWorker!, {
+            type: "LOAD_MODEL",
+            modelId,
+            modelData: encData,
+          }),
+          this.sendMessageToWorker(this.decoderWorker!, {
+            type: "LOAD_MODEL",
+            modelId,
+            modelData: decData,
+          }),
+        ]);
+
+        this.currentModel = model;
+        localStorage.setItem("last-ai-model-id", modelId);
+      } finally {
+        this.loadingModelId = null;
+        this.loadingPromise = null;
+      }
     })();
 
-    await this.loadingPromise;
+    return this.loadingPromise;
+  }
+
+  getCurrentModel(): ModelInfo | null {
+    return this.currentModel;
   }
 
   /**
