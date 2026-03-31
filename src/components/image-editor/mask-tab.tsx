@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from "react";
 
 import {
+  Square,
   Circle,
   MousePointer2,
   Undo2,
@@ -51,7 +52,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
   const [img] = useImage(sourceUrl);
   const stageRef = useRef<any>(null);
   const hasInitializedRef = useRef(false);
-  const [tool, setTool] = useState<MaskPath["tool"]>("lasso");
+  const [tool, setTool] = useState<MaskPath["tool"]>("ai");
   const [mode, setMode] = useState<MaskPath["mode"]>("add");
   const [brushSize, setBrushSize] = useState(20);
   const [zoom, setZoom] = useState(1);
@@ -70,7 +71,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
     downloadProgress,
   } = useAISegmentation();
   const [isAISegmenting, setIsAISegmenting] = useState(false);
-  const [showDebug, setShowDebug] = useState(false);
+  const [showDebug, setShowDebug] = useState(true);
   const [lastAIInput, setLastAIInput] = useState<ImageBitmap | null>(null);
   const [lastAIOutput, setLastAIOutput] = useState<Mask | null>(null);
   const [aiEmbeddingKey, setAiEmbeddingKey] = useState<string | null>(null);
@@ -361,6 +362,12 @@ export const MaskTab: React.FC<MaskTabProps> = ({
             active={tool === "lasso"}
             onClick={() => setTool("lasso")}
             icon={<MousePointer2 size={20} />}
+            label="Lasso"
+          />
+          <ToolButton
+            active={tool === "rectangle"}
+            onClick={() => setTool("rectangle")}
+            icon={<Square size={20} />}
             label="Rect"
           />
           <ToolButton

@@ -234,6 +234,8 @@ export async function generateSticker(
 
       const continueStickerGen = () => {
         // 3. Apply Transformation (Rotation + Crop)
+        // The goal: the final sticker is the UPRIGHT version of the rotated crop window.
+        // We use a Center-Pivot strategy: Any rotation in the UI happens about the crop's center.
         const transformCanvas = document.createElement("canvas");
         const cropW = transformation.width || sw;
         const cropH = transformation.height || sh;
@@ -242,8 +244,13 @@ export async function generateSticker(
         const tCtx = transformCanvas.getContext("2d");
         if (!tCtx) return reject(new Error("Transform context unavailable"));
 
+        // Pivot math (Matches CropTab UI):
+        // 1. Position context at the center of our output "window"
         tCtx.translate(cropW / 2, cropH / 2);
+        // 2. Counter-rotate the world to level the crop frame
         tCtx.rotate((-transformation.rotation * Math.PI) / 180);
+        // 3. Draw the image such that its selection center aligns with our window center
+        // Stored X,Y is top-left, so centerX is X + W/2
         tCtx.translate(-(transformation.x + cropW / 2), -(transformation.y + cropH / 2));
         tCtx.drawImage(sourceCanvas, 0, 0);
 
