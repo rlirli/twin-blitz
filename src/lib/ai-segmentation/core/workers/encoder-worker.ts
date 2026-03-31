@@ -7,69 +7,73 @@ import * as ort from "onnxruntime-web";
 
 import { getEmbeddingKey } from "../utils/embedding-utils";
 import { imageToTensor, scaleImage } from "../utils/image-utils";
-import { EncoderMessage } from "./protocol";
+import { EncoderMessage, EncoderResponse } from "./protocol";
 
 let session: ort.InferenceSession | null = null;
+let currentModelId: string | null = null;
 
-// Track current encoding to allow cancellation of stale ones
-let activeEncodeId = 0;
+// Initialize WASM paths for ORT
+// Note: In a production app, you might want to host these locally or use a CDN
+ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/";
 
 self.onmessage = async (e: MessageEvent<EncoderMessage>) => {
   const msg = e.data;
 
-  if (msg.type === "LOAD_MODEL") {
-    try {
-      session = null;
-      session = await ort.InferenceSession.create(msg.modelData, {
-        executionProviders: ["webgpu", "wasm"],
-      });
-      self.postMessage({ type: "LOADED" });
-    } catch (err: any) {
-      self.postMessage({ type: "ERROR", message: `Failed to load encoder: ${err.message}` });
-    }
-  } else if (msg.type === "ENCODE_IMAGE") {
-    if (!session) {
-      self.postMessage({ type: "ERROR", message: "No encoder session loaded" });
-      return;
-    }
+  try {
+    switch (msg.type) {
+      case "LOAD_MODEL": {
+        if (currentModelId === msg.modelId && session) {
+          self.postMessage({ type: "LOADED" } as EncoderResponse);
+          return;
+        }
 
-    const encodeId = ++activeEncodeId;
+        // Dispose previous session
+        if (session) {
+          await session.release();
+        }
 
-    try {
-      // 1. Check if we already have it in IndexedDB
-      const embeddingKey = getEmbeddingKey(msg.modelId, msg.modelVersion, msg.imageHash);
-      if (encodeId !== activeEncodeId) return;
+        session = await ort.InferenceSession.create(msg.modelData, {
+          executionProviders: ["webgpu", "wasm"],
+        });
+        currentModelId = msg.modelId;
+        self.postMessage({ type: "LOADED" } as EncoderResponse);
+        break;
+      }
 
-      // 2. Preprocess: Downscale to 1024x1024 (expected input for SAM-like models)
-      const scaled = await scaleImage(msg.image, 1024, 1024);
-      if (encodeId !== activeEncodeId) return;
+      case "ENCODE_IMAGE": {
+        if (!session) {
+          throw new Error("Encoder session not initialized");
+        }
 
-      const data = await imageToTensor(scaled);
-      if (encodeId !== activeEncodeId) return;
+        const { image, imageHash, modelId, modelVersion } = msg;
 
-      const tensor = new ort.Tensor("float32", data, [1, 3, 1024, 1024]);
+        // EfficientViT-SAM-L0 expects 512x512, others might expect 1024x1024
+        // For simplicity, we'll use 512 for L0 and 1024 for others
+        const targetDim = modelId === "EFFICIENTVIT_L0" ? 512 : 1024;
+        const scaledImage = await scaleImage(image, targetDim, targetDim);
+        const tensorData = await imageToTensor(scaledImage);
 
-      // 3. Inference
-      // The input key for EfficientViT-SAM is typically 'input'
-      const results = await session.run({ input: tensor });
-      if (encodeId !== activeEncodeId) return;
+        const inputTensor = new ort.Tensor("float32", tensorData, [1, 3, targetDim, targetDim]);
+        const outputs = await session.run({ image: inputTensor });
+        const embeddings = outputs.image_embeddings.data as Float32Array;
 
-      // The output key is typically 'output' or 'image_embeddings'
-      // We'll take the first available output
-      const outputName = session.outputNames[0];
-      const outputTensor = results[outputName];
-      const embeddings = outputTensor.data as Float32Array;
+        const embeddingKey = getEmbeddingKey(modelId, modelVersion, imageHash);
+        await set(embeddingKey, embeddings);
 
-      // 4. Store in IndexedDB
-      await set(embeddingKey, embeddings);
+        self.postMessage({ type: "ENCODED", imageHash, embeddingKey } as EncoderResponse);
+        break;
+      }
 
-      self.postMessage({ type: "ENCODED", embeddingKey });
-    } catch (err: any) {
-      if (encodeId === activeEncodeId) {
-        self.postMessage({ type: "ERROR", message: `Encoding failed: ${err.message}` });
+      case "DISPOSE": {
+        if (session) {
+          await session.release();
+          session = null;
+          currentModelId = null;
+        }
+        break;
       }
     }
-  } else if (msg.type === "DISPOSE") {
-    session = null;
+  } catch (err: any) {
+    self.postMessage({ type: "ERROR", message: err.message } as EncoderResponse);
   }
 };
