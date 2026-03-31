@@ -29,7 +29,7 @@ export const AVAILABLE_MODELS: Record<ModelId, ModelInfo> = {
     decoderUrl:
       "https://huggingface.co/mit-han-lab/efficientvit-sam/resolve/main/onnx/l0_decoder.onnx",
     sizeMB: 139.5,
-    targetResolution: 1024,
+    targetResolution: 512,
   },
   EFFICIENTVIT_L1: {
     id: "EFFICIENTVIT_L1",

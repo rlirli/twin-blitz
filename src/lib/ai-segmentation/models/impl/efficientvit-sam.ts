@@ -59,8 +59,8 @@ export class EfficientViTSAMModel implements SegmentationModel {
     const inputTensor = new ort.Tensor("float32", tensorData, [1, 3, res, res]);
 
     // 3. Encoder Inference
-    // EfficientViT-SAM typically has 'input' as input name
-    const results = await this.encoderSession.run({ input: inputTensor });
+    const inputName = this.encoderSession.inputNames[0];
+    const results = await this.encoderSession.run({ [inputName]: inputTensor });
 
     // Dynamically resolve output key (could be 'image_embeddings' or similar)
     const outputName = this.encoderSession.outputNames[0];
