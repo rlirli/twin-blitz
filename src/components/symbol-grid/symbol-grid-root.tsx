@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useRef, useState, useMemo } from "react";
+import React, { useRef, useState, useMemo, useEffect } from "react";
 
 import * as LucideIcons from "lucide-react";
+import { useQueryState, parseAsInteger, parseAsStringLiteral } from "nuqs";
 
 import { cn } from "@/lib/utils/cn";
 import {
@@ -46,9 +47,30 @@ export const SymbolGrid: React.FC = () => {
   const [bulkError, setBulkError] = useState<BulkErrorData | null>(null);
   const [isBulkUploading, setIsBulkUploading] = useState(false);
   const [isDefaultLoading, setIsDefaultLoading] = useState(false);
-  const [editingSlotId, setEditingSlotId] = useState<number | null>(null);
+  const [editingSlotId, setEditingSlotId] = useQueryState(
+    "symbol",
+    parseAsInteger.withOptions({ shallow: true, history: "push" }),
+  );
+  const [_, setTab] = useQueryState(
+    "tab",
+    parseAsStringLiteral(["mask", "crop"] as const).withOptions({ shallow: true }),
+  );
   const [focusedSlotId, setFocusedSlotId] = useState<number | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  const { hasHydrated } = useSymbolStore();
+
+  // Validate editingSlotId from URL
+  useEffect(() => {
+    if (editingSlotId !== null && hasHydrated) {
+      const symbol = symbols.find((s) => s.id === editingSlotId);
+      // Symbols up to totalSymbolCount are available
+      if (editingSlotId >= totalSymbolCount || !symbol || symbol.url === null) {
+        setEditingSlotId(null);
+        setTab(null);
+      }
+    }
+  }, [editingSlotId, symbols, totalSymbolCount, hasHydrated, setEditingSlotId, setTab]);
 
   const handleFileChange = async (id: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
