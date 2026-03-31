@@ -3,6 +3,7 @@
  */
 
 import { Mask } from "../core/utils/mask-utils";
+import { ModelId } from "./model-constants";
 
 export interface Point {
   /** X coordinate relative to image, in pixels */
@@ -14,7 +15,7 @@ export interface Point {
 }
 
 export interface ModelMetadata {
-  id: string;
+  id: ModelId;
   name: string;
   version: string;
   encoderUrl: string;
