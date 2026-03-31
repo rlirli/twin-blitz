@@ -16,10 +16,11 @@ export interface Transformation {
 }
 
 export interface MaskPath {
-  tool: "brush" | "lasso" | "rectangle" | "ellipse";
+  tool: "brush" | "lasso" | "rectangle" | "ellipse" | "ai";
   points: number[]; // can be image-relative or workspace-relative
   mode: "add" | "subtract" | "replace";
   brushSize?: number;
+  maskDataUrl?: string; // PNG data URL for AI masks
 }
 
 /**
@@ -93,12 +94,24 @@ export function transformMaskData(
     }
 
     const newPoints: number[] = [];
-    for (let i = 0; i < points.length; i += 2) {
-      const [nx, ny] =
-        direction === "A2B"
-          ? transformPointA2B(points[i], points[i + 1], t)
-          : transformPointB2A(points[i], points[i + 1], t);
-      newPoints.push(nx, ny);
+    if (tool !== "ai") {
+      for (let i = 0; i < points.length; i += 2) {
+        const [nx, ny] =
+          direction === "A2B"
+            ? transformPointA2B(points[i], points[i + 1], t)
+            : transformPointB2A(points[i], points[i + 1], t);
+        newPoints.push(nx, ny);
+      }
+    } else {
+      // AI points are always image-relative (A-space) in the stored MaskPath,
+      // but for local UI usage (B-space), we can transform them if needed.
+      for (let i = 0; i < points.length; i += 2) {
+        const [nx, ny] =
+          direction === "A2B"
+            ? transformPointA2B(points[i], points[i + 1], t)
+            : transformPointB2A(points[i], points[i + 1], t);
+        newPoints.push(nx, ny);
+      }
     }
     return { ...path, tool, points: newPoints };
   });
@@ -141,13 +154,16 @@ async function resizeImage(file: File, maxDimension: number): Promise<string> {
 
 /**
  * Draws a set of mask paths onto a canvas context.
+ * Note: If using AI masks, make sure images are pre-loaded or use drawMaskPathsAsync.
  */
-function drawMaskPaths(ctx: CanvasRenderingContext2D, maskPaths: MaskPath[]) {
+export function drawMaskPaths(ctx: CanvasRenderingContext2D, maskPaths: MaskPath[]) {
   maskPaths.forEach((path) => {
-    ctx.beginPath();
     ctx.globalCompositeOperation = path.mode === "subtract" ? "destination-out" : "source-over";
 
-    if (path.tool === "brush" || path.tool === "lasso") {
+    if (path.tool === "ai" && path.maskDataUrl) {
+      // Synchronous draw attempt. In generateSticker, we use Async version.
+    } else if (path.tool === "brush" || path.tool === "lasso") {
+      ctx.beginPath();
       if (path.points.length < 2) return;
       ctx.moveTo(path.points[0], path.points[1]);
       for (let i = 2; i < path.points.length; i += 2) {
@@ -164,15 +180,35 @@ function drawMaskPaths(ctx: CanvasRenderingContext2D, maskPaths: MaskPath[]) {
         ctx.fill();
       }
     } else if (path.tool === "rectangle") {
+      ctx.beginPath();
       const [x, y, w, h] = path.points;
       ctx.rect(x, y, w, h);
       ctx.fill();
     } else if (path.tool === "ellipse") {
+      ctx.beginPath();
       const [x, y, w, h] = path.points;
       ctx.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2);
       ctx.fill();
     }
   });
+}
+
+/**
+ * Asynchronously draws mask paths, accommodating AI mask image loading.
+ */
+export async function drawMaskPathsAsync(ctx: CanvasRenderingContext2D, maskPaths: MaskPath[]) {
+  for (const path of maskPaths) {
+    ctx.globalCompositeOperation = path.mode === "subtract" ? "destination-out" : "source-over";
+
+    if (path.tool === "ai" && path.maskDataUrl) {
+      const img = new Image();
+      img.src = path.maskDataUrl;
+      await new Promise((resolve) => (img.onload = resolve));
+      ctx.drawImage(img, 0, 0);
+    } else {
+      drawMaskPaths(ctx, [path]);
+    }
+  }
 }
 
 /**
@@ -196,60 +232,61 @@ export async function generateSticker(
       const sCtx = sourceCanvas.getContext("2d");
       if (!sCtx) return reject(new Error("Source context unavailable"));
 
+      const continueStickerGen = () => {
+        // 3. Apply Transformation (Rotation + Crop)
+        const transformCanvas = document.createElement("canvas");
+        const cropW = transformation.width || sw;
+        const cropH = transformation.height || sh;
+        transformCanvas.width = cropW;
+        transformCanvas.height = cropH;
+        const tCtx = transformCanvas.getContext("2d");
+        if (!tCtx) return reject(new Error("Transform context unavailable"));
+
+        tCtx.translate(cropW / 2, cropH / 2);
+        tCtx.rotate((-transformation.rotation * Math.PI) / 180);
+        tCtx.translate(-(transformation.x + cropW / 2), -(transformation.y + cropH / 2));
+        tCtx.drawImage(sourceCanvas, 0, 0);
+
+        // 4. Tight Bounding Box
+        const [bx, by, bw, bh] = getTightBoundingBox(transformCanvas);
+
+        // 5. Final 300px scale down
+        const finalCanvas = document.createElement("canvas");
+        const scale = Math.min(SYMBOL_STORAGE_SIZE_PX / bw, SYMBOL_STORAGE_SIZE_PX / bh, 1);
+        finalCanvas.width = bw * scale;
+        finalCanvas.height = bh * scale;
+        const fCtx = finalCanvas.getContext("2d");
+        if (!fCtx) return reject(new Error("Final context unavailable"));
+
+        fCtx.imageSmoothingEnabled = true;
+        fCtx.imageSmoothingQuality = "high";
+        fCtx.drawImage(
+          transformCanvas,
+          bx,
+          by,
+          bw,
+          bh,
+          0,
+          0,
+          finalCanvas.width,
+          finalCanvas.height,
+        );
+
+        resolve(finalCanvas.toDataURL("image/webp", SYMBOL_STORAGE_QUALITY));
+      };
+
       // 2. Draw mask
       if (maskPaths.length > 0) {
-        // Fill white where we want to keep
         sCtx.fillStyle = "white";
-        // If the first path is 'add' or 'replace', we start from empty.
-        // If we want a "Default keep all" starting point, we'd fill the whole thing first.
-        // The user's Q3 logic says "grey overlay... reveal background", so we start from empty/black.
-        drawMaskPaths(sCtx, maskPaths);
-
-        // Composite image with mask
-        sCtx.globalCompositeOperation = "source-in";
-        sCtx.drawImage(img, 0, 0);
+        drawMaskPathsAsync(sCtx, maskPaths).then(() => {
+          sCtx.globalCompositeOperation = "source-in";
+          sCtx.drawImage(img, 0, 0);
+          continueStickerGen();
+        });
       } else {
-        // No mask, just draw image
         sCtx.drawImage(img, 0, 0);
+        continueStickerGen();
       }
-
-      // 3. Apply Transformation (Rotation + Crop)
-      // The goal: the final sticker is the UPRIGHT version of the rotated crop window.
-      // We use a Center-Pivot strategy: Any rotation in the UI happens about the crop's center.
-      const transformCanvas = document.createElement("canvas");
-      const cropW = transformation.width || sw;
-      const cropH = transformation.height || sh;
-      transformCanvas.width = cropW;
-      transformCanvas.height = cropH;
-      const tCtx = transformCanvas.getContext("2d");
-      if (!tCtx) return reject(new Error("Transform context unavailable"));
-
-      // Pivot math (Matches CropTab UI):
-      // 1. Position context at the center of our output "window"
-      tCtx.translate(cropW / 2, cropH / 2);
-      // 2. Counter-rotate the world to level the crop frame
-      tCtx.rotate((-transformation.rotation * Math.PI) / 180);
-      // 3. Draw the image such that its selection center aligns with our window center
-      // Stored X,Y is top-left, so centerX is X + W/2
-      tCtx.translate(-(transformation.x + cropW / 2), -(transformation.y + cropH / 2));
-      tCtx.drawImage(sourceCanvas, 0, 0);
-
-      // 4. Tight Bounding Box
-      const [bx, by, bw, bh] = getTightBoundingBox(transformCanvas);
-
-      // 5. Final 300px scale down
-      const finalCanvas = document.createElement("canvas");
-      const scale = Math.min(SYMBOL_STORAGE_SIZE_PX / bw, SYMBOL_STORAGE_SIZE_PX / bh, 1);
-      finalCanvas.width = bw * scale;
-      finalCanvas.height = bh * scale;
-      const fCtx = finalCanvas.getContext("2d");
-      if (!fCtx) return reject(new Error("Final context unavailable"));
-
-      fCtx.imageSmoothingEnabled = true;
-      fCtx.imageSmoothingQuality = "high";
-      fCtx.drawImage(transformCanvas, bx, by, bw, bh, 0, 0, finalCanvas.width, finalCanvas.height);
-
-      resolve(finalCanvas.toDataURL("image/webp", SYMBOL_STORAGE_QUALITY));
     };
     img.onerror = () => reject(new Error("Failed to load source image for sticker generation"));
     img.src = sourceUrl;
