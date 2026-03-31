@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { ArrowLeft, Printer, Settings2 } from "lucide-react";
 
+import { AppLogo } from "@/components/shared";
 import { PROJECTIVE_PLANE_ORDER, TOTAL_CARDS } from "@/lib/constants";
 import { cn } from "@/lib/utils/cn";
 import { generateProjectivePlane } from "@/lib/utils/game-core";
@@ -125,9 +126,14 @@ export default function PrintPage() {
       </div>
 
       {/* Print Instructions (Hidden on Print) */}
-      <div className="mx-auto max-w-2xl p-12 text-center print:hidden">
-        <h1 className="text-primary mb-4 text-3xl font-bold">Print Preparation</h1>
-        <p className="mb-8 text-gray-600">
+      <div className="mx-auto max-w-2xl p-12 pt-12 text-center print:hidden">
+        <div className="mb-6 flex justify-center">
+          <AppLogo size="sm" />
+        </div>
+        <h1 className="text-primary mb-4 text-3xl font-extrabold tracking-tight">
+          Print Preparation
+        </h1>
+        <p className="text-muted-foreground mb-8">
           We have generated {TOTAL_CARDS} cards. Each will be centered on a separate page. When you
           click "Print", make sure to set:
         </p>
