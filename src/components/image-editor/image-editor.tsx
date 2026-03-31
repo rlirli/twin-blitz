@@ -1,6 +1,5 @@
 "use client";
-
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Activity } from "react";
 
 import dynamic from "next/dynamic";
 
@@ -151,20 +150,21 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ slotId, onClose }) => 
 
       {/* Main Workbench */}
       <main className="relative flex-1 overflow-hidden bg-slate-950">
-        {activeTab === "mask" ? (
+        <Activity mode={activeTab === "mask" ? "visible" : "hidden"}>
           <MaskTab
             sourceUrl={sourceUrl}
             transformation={transformation}
             maskData={maskData}
             onUpdateMask={setMaskData}
           />
-        ) : (
+        </Activity>
+        <Activity mode={activeTab === "crop" ? "visible" : "hidden"}>
           <CropTab
             sourceUrl={sourceUrl}
             transformation={transformation}
             onUpdateTransformation={setTransformation}
           />
-        )}
+        </Activity>
       </main>
     </div>
   );
