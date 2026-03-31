@@ -1,10 +1,10 @@
 "use client";
-
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Activity } from "react";
 
 import dynamic from "next/dynamic";
 
 import { X, Check, Crop as CropIcon, Scissors } from "lucide-react";
+import { useQueryState, parseAsStringLiteral } from "nuqs";
 
 import { cn } from "@/lib/utils/cn";
 import { Transformation, MaskPath, generateSticker } from "@/lib/utils/image-processing";
@@ -29,7 +29,10 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ slotId, onClose }) => 
     useSymbolStore();
   const symbol = symbols.find((s) => s.id === slotId);
 
-  const [activeTab, setActiveTab] = useState<"mask" | "crop">("mask");
+  const [activeTab, setActiveTab] = useQueryState(
+    "tab",
+    parseAsStringLiteral(["mask", "crop"] as const).withDefault("mask"),
+  );
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -65,13 +68,18 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ slotId, onClose }) => 
 
       // 3. Store the result
       setSymbolResult(slotId, resultUrl);
-      onClose();
+      handleClose();
     } catch (err) {
       console.error("Failed to save sticker:", err);
       alert("Failed to save. Please try again.");
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleClose = async () => {
+    await setActiveTab(null);
+    onClose();
   };
 
   if (!sourceUrl) {
@@ -88,7 +96,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ slotId, onClose }) => 
       <header className="flex h-14 items-center justify-between border-b border-slate-800 bg-slate-900 px-3 shadow-md transition-all sm:h-16 sm:px-4">
         <div className="flex items-center gap-2 sm:gap-4">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-full p-2 transition-colors hover:bg-slate-800 active:bg-slate-700"
           >
             <X size={20} className="sm:h-6 sm:w-6" />
@@ -142,20 +150,21 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ slotId, onClose }) => 
 
       {/* Main Workbench */}
       <main className="relative flex-1 overflow-hidden bg-slate-950">
-        {activeTab === "mask" ? (
+        <Activity mode={activeTab === "mask" ? "visible" : "hidden"}>
           <MaskTab
             sourceUrl={sourceUrl}
             transformation={transformation}
             maskData={maskData}
             onUpdateMask={setMaskData}
           />
-        ) : (
+        </Activity>
+        <Activity mode={activeTab === "crop" ? "visible" : "hidden"}>
           <CropTab
             sourceUrl={sourceUrl}
             transformation={transformation}
             onUpdateTransformation={setTransformation}
           />
-        )}
+        </Activity>
       </main>
     </div>
   );
