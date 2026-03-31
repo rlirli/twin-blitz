@@ -5,19 +5,25 @@ import { ChevronDown, Sparkles, Download, Check, Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils/cn";
 
-import { aiSegmentationService } from "../ai-segmentation.service";
+import { aiSegmentationService, DownloadProgress } from "../ai-segmentation.service";
 import { AVAILABLE_MODELS, ModelId, ModelInfo } from "../models/model-constants";
 
 interface ModelSelectorProps {
   currentModel: ModelInfo | null;
+  loadingModelId?: ModelId | null;
   onSelect: (modelId: ModelId) => void;
   isLoading: boolean;
+  downloadProgress?: DownloadProgress | null;
+  className?: string;
 }
 
 export const ModelSelector: React.FC<ModelSelectorProps> = ({
   currentModel,
+  loadingModelId,
   onSelect,
   isLoading,
+  downloadProgress,
+  className,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [cachedModels, setCachedModels] = useState<Set<ModelId>>(new Set());
@@ -34,7 +40,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       setCachedModels(cached);
     };
     checkCache();
-  }, [isOpen]);
+  }, [isOpen, isLoading]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -53,7 +59,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       const model = AVAILABLE_MODELS[modelId];
       if (
         !window.confirm(
-          `This model (${model.sizeMB}MB) will be downloaded and cached in your browser. Proceed?`,
+          `This model (${model.sizeMB.toFixed(1)}MB) will be downloaded and cached in your browser. Proceed?`,
         )
       ) {
         return;
@@ -63,17 +69,46 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     setIsOpen(false);
   };
 
+  const formatMB = (bytes: number) => (bytes / (1024 * 1024)).toFixed(1);
+
+  const hasAnyCached = cachedModels.size > 0;
+  const isDownloading = isLoading && downloadProgress;
+
+  // What to display in the trigger
+  const displayModel = loadingModelId ? AVAILABLE_MODELS[loadingModelId] : currentModel;
+
   return (
-    <div className="relative" ref={containerRef}>
+    <div className={cn("relative", className)} ref={containerRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "flex items-center gap-2 rounded-xl bg-slate-900/80 px-3 py-1.5 text-xs font-bold ring-1 ring-white/10 backdrop-blur-xl transition-all hover:bg-slate-800",
-          !currentModel && "text-amber-400 ring-amber-500/50",
+          "flex h-full items-center gap-2 rounded-xl bg-slate-900/80 px-3 py-1.5 text-xs font-bold ring-1 ring-white/10 backdrop-blur-xl transition-all hover:bg-slate-800",
+          !displayModel && !hasAnyCached && "animate-pulse text-amber-400 ring-amber-500/50",
+          !displayModel && hasAnyCached && "text-slate-400 ring-white/10",
         )}
       >
         <Sparkles size={14} className={cn(isLoading && "animate-pulse")} />
-        <span>{currentModel ? currentModel.name : "Select AI Model"}</span>
+        <div className="flex flex-col items-start leading-tight">
+          <span
+            className={cn(
+              (isDownloading || (isLoading && !isDownloading)) && "animate-pulse text-indigo-400",
+            )}
+          >
+            {displayModel
+              ? displayModel.name
+              : hasAnyCached
+                ? "Select AI Model"
+                : "Download Model to Start"}
+          </span>
+          {isDownloading && (
+            <>
+              <span className="text-[9px] font-medium text-indigo-400">Downloading</span>
+              <span className="font-mono text-[9px] text-indigo-400">
+                ({formatMB(downloadProgress.loaded)} / {formatMB(downloadProgress.total)} MB)
+              </span>
+            </>
+          )}
+        </div>
         {isLoading ? (
           <Loader2 size={14} className="animate-spin opacity-50" />
         ) : (
@@ -84,7 +119,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       <AnimatePresence>
         {isOpen && (
           <>
-            {/* Mobile Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -98,7 +132,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.98 }}
               className={cn(
-                "fixed inset-x-4 top-[20%] bottom-auto z-50 overflow-hidden rounded-2xl border border-white/10 bg-slate-900 p-2 shadow-2xl backdrop-blur-2xl sm:absolute sm:top-full sm:right-0 sm:left-auto sm:mt-2 sm:w-64 sm:rounded-xl",
+                "fixed inset-x-4 top-[20%] bottom-auto z-50 overflow-hidden rounded-2xl border border-white/10 bg-slate-900 p-2 shadow-2xl backdrop-blur-2xl sm:absolute sm:top-full sm:right-0 sm:left-auto sm:mt-2 sm:w-72 sm:rounded-xl",
                 "max-h-[60vh] overflow-y-auto",
               )}
             >
@@ -107,29 +141,54 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               </div>
               <div className="flex flex-col gap-1">
                 {(Object.values(AVAILABLE_MODELS) as ModelInfo[]).map((model) => {
-                  const isActive = currentModel?.id === model.id;
+                  const isActive = currentModel?.id === model.id || loadingModelId === model.id;
                   const isCached = cachedModels.has(model.id as ModelId);
+                  const isItemDownloading =
+                    isLoading && loadingModelId === model.id && downloadProgress;
 
                   return (
                     <button
                       key={model.id}
                       onClick={() => handleSelect(model.id as ModelId)}
+                      disabled={isLoading && loadingModelId === model.id}
                       className={cn(
                         "flex items-center justify-between rounded-lg px-3 py-2 text-left transition-all",
                         isActive
                           ? "bg-indigo-500/20 text-indigo-400"
-                          : "text-slate-300 hover:bg-white/5",
+                          : isCached
+                            ? "text-slate-300 hover:bg-white/5"
+                            : "text-slate-500 hover:bg-white/5",
                       )}
                     >
                       <div className="flex flex-col">
                         <span className="text-xs font-bold">{model.name}</span>
-                        <span className="text-[10px] opacity-50">
-                          {model.sizeMB}MB • Version {model.version}
+                        <span className="text-[10px] opacity-70">
+                          {isItemDownloading ? (
+                            <>
+                              <span className="text-indigo-400">Downloading</span>{" "}
+                              <span className="font-mono">
+                                ({formatMB(downloadProgress.loaded)} /{" "}
+                                {formatMB(downloadProgress.total)} MB)
+                              </span>
+                            </>
+                          ) : (
+                            <span>
+                              {isCached ? "Ready" : `${model.sizeMB.toFixed(1)}MB`} • Version{" "}
+                              {model.version}
+                            </span>
+                          )}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        {isActive && <Check size={14} className="text-indigo-400" />}
-                        {!isCached && <Download size={14} className="opacity-30" />}
+                        {isActive && !isItemDownloading && (
+                          <Check size={14} className="text-indigo-400" />
+                        )}
+                        {isItemDownloading && (
+                          <Loader2 size={14} className="animate-spin text-indigo-400" />
+                        )}
+                        {!isCached && !isItemDownloading && (
+                          <Download size={14} className="opacity-30" />
+                        )}
                       </div>
                     </button>
                   );

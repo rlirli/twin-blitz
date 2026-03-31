@@ -2,27 +2,48 @@
  * React hook for AI segmentation.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
-import { aiSegmentationService } from "../ai-segmentation.service";
+import { aiSegmentationService, DownloadProgress } from "../ai-segmentation.service";
 import { Point } from "../core/workers/protocol";
 import { ModelId, ModelInfo, AVAILABLE_MODELS } from "../models/model-constants";
 
 export function useAISegmentation() {
   const [currentModel, setCurrentModel] = useState<ModelInfo | null>(null);
+  const [loadingModelId, setLoadingModelId] = useState<ModelId | null>(null);
   const [isModelLoading, setIsModelLoading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Auto-load last used model if available in cache
+  useEffect(() => {
+    const lastId = localStorage.getItem("last-ai-model-id") as ModelId;
+    if (lastId && AVAILABLE_MODELS[lastId]) {
+      const checkAndLoad = async () => {
+        if (await aiSegmentationService.isModelCached(lastId)) {
+          loadModel(lastId);
+        }
+      };
+      checkAndLoad();
+    }
+  }, []);
 
   const loadModel = useCallback(async (modelId: ModelId) => {
     setIsModelLoading(true);
+    setLoadingModelId(modelId);
+    setDownloadProgress(null);
     setError(null);
     try {
-      await aiSegmentationService.loadModel(modelId);
+      await aiSegmentationService.loadModel(modelId, (p) => {
+        setDownloadProgress(p);
+      });
       setCurrentModel(AVAILABLE_MODELS[modelId]);
     } catch (err: any) {
       setError(err.message || "Failed to load model");
     } finally {
       setIsModelLoading(false);
+      setLoadingModelId(null);
+      setDownloadProgress(null);
     }
   }, []);
 
@@ -46,7 +67,9 @@ export function useAISegmentation() {
 
   return {
     currentModel,
+    loadingModelId,
     isModelLoading,
+    downloadProgress,
     error,
     loadModel,
     encodeImage,

@@ -9,6 +9,12 @@ import { getEmbeddingKey } from "./core/utils/embedding-utils";
 import { DecoderResponse, EncoderResponse, Point } from "./core/workers/protocol";
 import { AVAILABLE_MODELS, ModelId, ModelInfo } from "./models/model-constants";
 
+export interface DownloadProgress {
+  loaded: number;
+  total: number;
+  percent: number;
+}
+
 class AISegmentationService {
   private encoderWorker: Worker | null = null;
   private decoderWorker: Worker | null = null;
@@ -35,20 +41,49 @@ class AISegmentationService {
     }
   }
 
-  private async fetchAndCacheModel(url: string): Promise<ArrayBuffer> {
+  private async fetchAndCacheModel(
+    url: string,
+    onProgress?: (loaded: number, total: number) => void,
+  ): Promise<ArrayBuffer> {
     const cache = await caches.open("ai-models-v1");
     const cachedResponse = await cache.match(url);
     if (cachedResponse) {
-      return cachedResponse.arrayBuffer();
+      const buffer = await cachedResponse.arrayBuffer();
+      // No onProgress call for cached models
+      return buffer;
     }
 
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Failed to fetch model from ${url}`);
 
-    // We don't cache here directly as we need the buffer, but we could
-    const buffer = await response.arrayBuffer();
+    const contentLength = response.headers.get("content-length");
+    const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+    if (!response.body) throw new Error("Response body is null");
+
+    const reader = response.body.getReader();
+    let loaded = 0;
+    const chunks: Uint8Array[] = [];
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      chunks.push(value);
+      loaded += value.length;
+
+      onProgress?.(loaded, total);
+    }
+
+    const buffer = new Uint8Array(loaded);
+    let offset = 0;
+    for (const chunk of chunks) {
+      buffer.set(chunk, offset);
+      offset += chunk.length;
+    }
+
     await cache.put(url, new Response(buffer.slice(0))); // cache a copy
-    return buffer;
+    return buffer.buffer;
   }
 
   /**
@@ -65,15 +100,47 @@ class AISegmentationService {
   /**
    * Loads the specified model into memory.
    */
-  async loadModel(modelId: ModelId): Promise<void> {
+  async loadModel(
+    modelId: ModelId,
+    onProgress?: (progress: DownloadProgress) => void,
+  ): Promise<void> {
     if (this.currentModel?.id === modelId) return;
     this.ensureWorkers();
 
     const model = AVAILABLE_MODELS[modelId];
+
+    let encLoaded = 0,
+      encTotal = 0;
+    let decLoaded = 0,
+      decTotal = 0;
+
+    const isCached = await this.isModelCached(modelId);
+
+    const reportProgress = () => {
+      if (!onProgress || isCached) return;
+      const total = encTotal + decTotal;
+      const loaded = encLoaded + decLoaded;
+      if (total > 0) {
+        onProgress({
+          loaded,
+          total,
+          percent: Math.round((loaded / total) * 100),
+        });
+      }
+    };
+
     this.loadingPromise = (async () => {
       const [encData, decData] = await Promise.all([
-        this.fetchAndCacheModel(model.encoderUrl),
-        this.fetchAndCacheModel(model.decoderUrl),
+        this.fetchAndCacheModel(model.encoderUrl, (l, t) => {
+          encLoaded = l;
+          encTotal = t;
+          reportProgress();
+        }),
+        this.fetchAndCacheModel(model.decoderUrl, (l, t) => {
+          decLoaded = l;
+          decTotal = t;
+          reportProgress();
+        }),
       ]);
 
       await Promise.all([
@@ -90,6 +157,7 @@ class AISegmentationService {
       ]);
 
       this.currentModel = model;
+      localStorage.setItem("last-ai-model-id", modelId);
     })();
 
     await this.loadingPromise;
