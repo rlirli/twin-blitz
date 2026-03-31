@@ -39,7 +39,7 @@ export const AVAILABLE_MODELS: Record<ModelId, ModelInfo> = {
       "https://huggingface.co/mit-han-lab/efficientvit-sam/resolve/main/onnx/l1_encoder.onnx",
     decoderUrl:
       "https://huggingface.co/mit-han-lab/efficientvit-sam/resolve/main/onnx/l1_decoder.onnx",
-    sizeMB: 246,
+    sizeMB: 192,
     targetResolution: 1024,
   },
   EFFICIENTVIT_L2: {
@@ -50,7 +50,7 @@ export const AVAILABLE_MODELS: Record<ModelId, ModelInfo> = {
       "https://huggingface.co/mit-han-lab/efficientvit-sam/resolve/main/onnx/l2_encoder.onnx",
     decoderUrl:
       "https://huggingface.co/mit-han-lab/efficientvit-sam/resolve/main/onnx/l2_decoder.onnx",
-    sizeMB: 310,
+    sizeMB: 246,
     targetResolution: 1024,
   },
   EFFICIENTVIT_XL0: {
@@ -61,7 +61,7 @@ export const AVAILABLE_MODELS: Record<ModelId, ModelInfo> = {
       "https://huggingface.co/mit-han-lab/efficientvit-sam/resolve/main/onnx/xl0_encoder.onnx",
     decoderUrl:
       "https://huggingface.co/mit-han-lab/efficientvit-sam/resolve/main/onnx/xl0_decoder.onnx",
-    sizeMB: 500,
+    sizeMB: 469,
     targetResolution: 1024,
   },
   EFFICIENTVIT_XL1: {
@@ -72,7 +72,7 @@ export const AVAILABLE_MODELS: Record<ModelId, ModelInfo> = {
       "https://huggingface.co/mit-han-lab/efficientvit-sam/resolve/main/onnx/xl1_encoder.onnx",
     decoderUrl:
       "https://huggingface.co/mit-han-lab/efficientvit-sam/resolve/main/onnx/xl1_decoder.onnx",
-    sizeMB: 600,
+    sizeMB: 814,
     targetResolution: 1024,
   },
 };
