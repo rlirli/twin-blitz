@@ -5,6 +5,7 @@
 
 import { get } from "idb-keyval";
 
+import { logDebugImage, logDebugMask } from "./core/utils/debug-utils";
 import { getEmbeddingKey } from "./core/utils/embedding-utils";
 import { DecoderResponse, EncoderResponse, Point } from "./core/workers/protocol";
 import { AVAILABLE_MODELS, ModelId, ModelInfo } from "./models/model-constants";
@@ -180,6 +181,8 @@ class AISegmentationService {
     const existing = await get(embeddingKey);
     if (existing) return embeddingKey;
 
+    logDebugImage(image, "AISegmentationService.encodeImage() input image", imageHash);
+
     // 2. Encode via worker
     await this.sendMessageToWorker<EncoderResponse>(this.encoderWorker!, {
       type: "ENCODE_IMAGE",
@@ -206,7 +209,10 @@ class AISegmentationService {
       points,
     });
 
-    if (response.type === "DECODED") return response.mask;
+    if (response.type === "DECODED") {
+      logDebugMask(response.mask, "AISegmentationService.decodePoints() mask output");
+      return response.mask;
+    }
     throw new Error("Failed to decode mask");
   }
 

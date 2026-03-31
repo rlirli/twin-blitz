@@ -98,14 +98,17 @@ export class EfficientViTSAMModel implements SegmentationModel {
     const hasMaskInput = new ort.Tensor("float32", new Float32Array([0]), [1]);
     const origImSize = new ort.Tensor("float32", new Float32Array([1024, 1024]), [2]);
 
-    const inputs = {
-      image_embeddings: embeddings,
-      point_coords: pointCoords,
-      point_labels: pointLabels,
-      mask_input: maskInput,
-      has_mask_input: hasMaskInput,
-      orig_im_size: origImSize,
-    };
+    const inputs: any = {};
+    const inputNames = this.decoderSession.inputNames;
+
+    if (inputNames.includes("image_embeddings")) inputs.image_embeddings = embeddings;
+    if (inputNames.includes("point_coords")) inputs.point_coords = pointCoords;
+    if (inputNames.includes("point_labels")) inputs.point_labels = pointLabels;
+
+    // The following are not part of L0 input (other variants not yet checked)
+    if (inputNames.includes("mask_input")) inputs.mask_input = maskInput;
+    if (inputNames.includes("has_mask_input")) inputs.has_mask_input = hasMaskInput;
+    if (inputNames.includes("orig_im_size")) inputs.orig_im_size = origImSize;
 
     // 4. Decoder Inference
     const results = await this.decoderSession.run(inputs);
