@@ -7,7 +7,7 @@ import { get, set } from "idb-keyval";
 import * as ort from "onnxruntime-web";
 
 import { getEmbeddingKey } from "../../core/utils/embedding-utils";
-import { Mask, rescaleMask } from "../../core/utils/mask-utils";
+import { Mask, cropAndRescaleMask } from "../../core/utils/mask-utils";
 import { Point, SegmentationModel, ModelMetadata } from "../segmentation-model";
 
 export class SAM2Model implements SegmentationModel {
@@ -89,13 +89,8 @@ export class SAM2Model implements SegmentationModel {
     const existing = await get(embeddingKey);
     if (existing) return embeddingKey;
 
-    // 2. Prepare Image (Mirroring user's prepareImage logic)
+    // 2. Resolve target dimensions (Letterbox)
     const res = this.metadata.targetResolution;
-    const canvas = new OffscreenCanvas(image.width, image.height);
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(image, 0, 0);
-    const idata = ctx.getImageData(0, 0, image.width, image.height);
-
     const w = image.width;
     const h = image.height;
     const scale = Math.min(res / w, res / h);
@@ -104,25 +99,25 @@ export class SAM2Model implements SegmentationModel {
     const padX = (res - newW) / 2;
     const padY = (res - newH) / 2;
 
+    // 3. Fast Canvas Resizing (Letterboxed into a square canvas)
+    const canvas = new OffscreenCanvas(res, res);
+    const ctx = canvas.getContext("2d")!;
+    // Clear to black (standard for padding)
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, res, res);
+    // Draw centered
+    ctx.drawImage(image, padX, padY, newW, newH);
+
+    const idata = ctx.getImageData(0, 0, res, res).data;
     const tensor = new Float32Array(3 * res * res);
-    const src = idata.data;
     const chSize = res * res;
 
-    for (let y = 0; y < newH; y++) {
-      for (let x = 0; x < newW; x++) {
-        const srcX = Math.floor(x / scale);
-        const srcY = Math.floor(y / scale);
-        const srcIdx = (srcY * w + srcX) * 4;
-
-        const dstX = Math.floor(padX + x);
-        const dstY = Math.floor(padY + y);
-        const dstIdx = dstY * res + dstX;
-
-        // ImageNet Normalization
-        tensor[dstIdx] = (src[srcIdx] / 255.0 - 0.485) / 0.229; // R
-        tensor[dstIdx + chSize] = (src[srcIdx + 1] / 255.0 - 0.456) / 0.224; // G
-        tensor[dstIdx + chSize * 2] = (src[srcIdx + 2] / 255.0 - 0.406) / 0.225; // B
-      }
+    // Normalization + Tensorization
+    for (let i = 0; i < chSize; i++) {
+      const srcIdx = i * 4;
+      tensor[i] = (idata[srcIdx] / 255.0 - 0.485) / 0.229; // R
+      tensor[i + chSize] = (idata[srcIdx + 1] / 255.0 - 0.456) / 0.224; // G
+      tensor[i + chSize * 2] = (idata[srcIdx + 2] / 255.0 - 0.406) / 0.225; // B
     }
 
     // Dynamic Shape detection (Is 5D?)
@@ -134,7 +129,7 @@ export class SAM2Model implements SegmentationModel {
 
     console.log(`[SAM2Model] Encoding image (Normalization + Letterbox). is5D: ${is5D}`);
 
-    // 3. Encoder Inference
+    // 4. Encoder Inference
     const inputName = this.encoderSession.inputNames[0];
     const results = await this.encoderSession.run({ [inputName]: inputTensor });
 
@@ -142,7 +137,7 @@ export class SAM2Model implements SegmentationModel {
     const storage: Record<string, any> = {
       originalWidth: image.width,
       originalHeight: image.height,
-      letterbox: { scale, padX, padY },
+      letterbox: { scale, padX, padY, newW, newH },
       outputs: {},
     };
 
@@ -162,11 +157,9 @@ export class SAM2Model implements SegmentationModel {
     if (!entry) throw new Error("Embeddings not found in IndexedDB");
 
     const { outputs, originalWidth, originalHeight, letterbox } = entry;
-    const { scale, padX, padY } = letterbox || { scale: 1, padX: 0, padY: 0 };
+    const { scale, padX, padY, newW, newH } = letterbox || { scale: 1, padX: 0, padY: 0 };
 
-    // 2. Prepare Clicks: Use relative coordinates (0-1) mapped through letterbox
-    const res = this.metadata.targetResolution;
-
+    // 2. Prepare Clicks: Map from relative original to letterboxed absolute
     const getExpectedShape = (name: string) =>
       (this.decoderSession as any).inputsMeta?.[name]?.dims;
 
@@ -198,18 +191,16 @@ export class SAM2Model implements SegmentationModel {
     const inputs: any = {};
     const inputNames = this.decoderSession.inputNames;
 
-    // Map encoder outputs to decoder inputs with alias support
+    // Map outputs to inputs
     const findOutput = (prefixes: string[]) => {
       for (const prefix of prefixes) {
         if (outputs[prefix]) return outputs[prefix];
-        // Also check if any output STARTS with the prefix (some models add suffixes)
         const match = Object.keys(outputs).find((k) => k.startsWith(prefix));
         if (match) return outputs[match];
       }
       return null;
     };
 
-    // 1. Primary Embeddings
     const embedData = findOutput(["image_embeddings", "image_embed", "image_features"]);
     if (embedData) {
       const name = inputNames.find((n) => n.includes("embed") || n.includes("feat"));
@@ -220,7 +211,6 @@ export class SAM2Model implements SegmentationModel {
       }
     }
 
-    // 2. High Res Features (SAM 2 specific)
     if (inputNames.includes("high_res_feats_0")) {
       const data = outputs.high_res_feats_0 || outputs.high_res_feats_0_0;
       if (data) {
@@ -253,6 +243,7 @@ export class SAM2Model implements SegmentationModel {
       inputs[hasMaskInputName] = new ort.Tensor("float32", new Float32Array([0]), [1]);
     }
 
+    const res = this.metadata.targetResolution;
     const origSizeName = inputNames.find(
       (n) => n.includes("orig_im_size") || n.includes("orig_size"),
     );
@@ -260,37 +251,45 @@ export class SAM2Model implements SegmentationModel {
       inputs[origSizeName] = new ort.Tensor("float32", new Float32Array([res, res]), [2]);
     }
 
-    // 4. Decoder Inference
     const results = await this.decoderSession.run(inputs);
-
-    // SAM2 often outputs 'masks' or 'high_res_masks'
     const outputName = this.decoderSession.outputNames.includes("masks")
       ? "masks"
       : this.decoderSession.outputNames[0];
 
     const maskTensor = results[outputName];
     const maskData = maskTensor.data as Float32Array;
-
     const dims = maskTensor.dims;
     const outH = dims[2];
     const outW = dims[3];
-    const maskSize = outH * outW;
 
-    // 5. Binary Thresholding
-    const alpha = new Uint8Array(maskSize);
-    for (let i = 0; i < maskSize; i++) {
-      // Take first mask (SAM usually outputs 3-4 variants)
+    // Important: We need to reverse letterbox.
+    // The mask resolution (outH, outW) might be different from encoding resolution (res, res).
+    // Usually it's 1:1 (1024x1024) or 1:4 (256x256).
+    const outScaleX = outW / res;
+    const outScaleY = outH / res;
+
+    const alpha = new Uint8Array(outW * outH);
+    for (let i = 0; i < outW * outH; i++) {
       alpha[i] = maskData[i] > 0 ? 255 : 0;
     }
 
-    const rawMask = {
-      width: outW,
-      height: outH,
-      alpha,
-    };
+    const rawMask = { width: outW, height: outH, alpha };
 
-    // 6. Rescale back to original image resolution
-    return await rescaleMask(rawMask, originalWidth, originalHeight);
+    // Use un-padding logic
+    const cropX = padX * outScaleX;
+    const cropY = padY * outScaleY;
+    const cropW = newW * outScaleX;
+    const cropH = newH * outScaleY;
+
+    return await cropAndRescaleMask(
+      rawMask,
+      cropX,
+      cropY,
+      cropW,
+      cropH,
+      originalWidth,
+      originalHeight,
+    );
   }
 
   dispose(): void {

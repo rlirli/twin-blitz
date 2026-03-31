@@ -90,3 +90,45 @@ export async function rescaleMask(
     alpha,
   };
 }
+
+/**
+ * Crops a mask to a specific region and then resizes it.
+ * Useful for undoing letterboxed/padded preprocessing.
+ */
+export async function cropAndRescaleMask(
+  mask: Mask,
+  cropX: number,
+  cropY: number,
+  cropWidth: number,
+  cropHeight: number,
+  targetWidth: number,
+  targetHeight: number,
+): Promise<Mask> {
+  const canvas = new OffscreenCanvas(mask.width, mask.height);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not get 2d context for OffscreenCanvas");
+
+  const imageData = maskToImageData(mask);
+  ctx.putImageData(imageData, 0, 0);
+
+  const outCanvas = new OffscreenCanvas(targetWidth, targetHeight);
+  const outCtx = outCanvas.getContext("2d");
+  if (!outCtx) throw new Error("Could not get 2d context for OffscreenCanvas");
+
+  // We draw a sub-section of the source canvas (the unpadded region)
+  // into the destination canvas (the full original image resolution).
+  outCtx.imageSmoothingEnabled = true;
+  outCtx.drawImage(canvas, cropX, cropY, cropWidth, cropHeight, 0, 0, targetWidth, targetHeight);
+
+  const outImageData = outCtx.getImageData(0, 0, targetWidth, targetHeight).data;
+  const alpha = new Uint8Array(targetWidth * targetHeight);
+  for (let i = 0; i < alpha.length; i++) {
+    alpha[i] = outImageData[i * 4 + 3];
+  }
+
+  return {
+    width: targetWidth,
+    height: targetHeight,
+    alpha,
+  };
+}
