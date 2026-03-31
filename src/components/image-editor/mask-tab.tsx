@@ -329,15 +329,17 @@ export const MaskTab: React.FC<MaskTabProps> = ({
     <div className="relative flex h-full flex-col overflow-hidden">
       {/* 1. Top Context Bar (Floating) */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-        <ModelSelector
-          currentModel={currentModel}
-          loadingModelId={loadingModelId}
-          onSelect={loadModel}
-          isLoading={isModelLoading}
-          downloadProgress={downloadProgress}
-          className="h-[50px] rounded-2xl"
-        />
-        <div className="flex h-[50px] items-center rounded-2xl bg-slate-900/80 p-1.5 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl">
+        {tool === "ai" && (
+          <ModelSelector
+            currentModel={currentModel}
+            loadingModelId={loadingModelId}
+            onSelect={loadModel}
+            isLoading={isModelLoading}
+            downloadProgress={downloadProgress}
+            className="h-[50px] rounded-2xl"
+          />
+        )}
+        <div className="flex h-12 items-center justify-center rounded-2xl bg-slate-900/80 p-1.5 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl">
           <ActionButton onClick={handleUndo} icon={<Undo2 size={18} />} />
           <div className="mx-1 h-4 w-px bg-slate-700" />
           <ActionButton
