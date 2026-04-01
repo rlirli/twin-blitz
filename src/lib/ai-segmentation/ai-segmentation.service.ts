@@ -141,37 +141,30 @@ class AISegmentationService {
         let decoderLoadedBytes = 0;
         let decoderTotalBytes = 0;
 
+        const metadataTotal = model.sizeMB * 1024 * 1024;
+
         const updateProgress = () => {
-          if (onProgress && encoderTotalBytes && decoderTotalBytes) {
-            const total = encoderTotalBytes + decoderTotalBytes;
+          if (onProgress) {
             const loaded = encoderLoadedBytes + decoderLoadedBytes;
-            onProgress({ loaded, total, percent: Math.round((loaded / total) * 100) });
+            const total = Math.max(metadataTotal, encoderTotalBytes + decoderTotalBytes);
+            const percent = Math.min(99, Math.round((loaded / total) * 100));
+            onProgress({ loaded, total: total || metadataTotal, percent });
           }
         };
 
-        const encData = await this.fetchAndCacheModel(
-          model.encoderUrl,
-          (loaded, total) => {
-            encoderLoadedBytes = loaded;
-            encoderTotalBytes = total;
-            updateProgress();
-          },
-          signal,
-        );
-
-        const decData = await this.fetchAndCacheModel(
-          model.decoderUrl,
-          (loaded, total) => {
-            decoderLoadedBytes = loaded;
-            decoderTotalBytes = total;
-            updateProgress();
-          },
-          signal,
-        );
-
-        // Send to workers with transfers to free memory in main thread immediately
-        await Promise.all([
-          this.sendMessageToWorker(
+        // 1. Start both downloads in parallel for speed
+        const encoderLoad = (async () => {
+          const encData = await this.fetchAndCacheModel(
+            model.encoderUrl,
+            (loaded, total) => {
+              encoderLoadedBytes = loaded;
+              encoderTotalBytes = total;
+              updateProgress();
+            },
+            signal,
+          );
+          // MOVE it to the worker immediately to free main thread RAM
+          return this.sendMessageToWorker(
             this.encoderWorker!,
             {
               type: "LOAD_MODEL",
@@ -179,8 +172,21 @@ class AISegmentationService {
               modelData: encData,
             },
             [encData],
-          ),
-          this.sendMessageToWorker(
+          );
+        })();
+
+        const decoderLoad = (async () => {
+          const decData = await this.fetchAndCacheModel(
+            model.decoderUrl,
+            (loaded, total) => {
+              decoderLoadedBytes = loaded;
+              decoderTotalBytes = total;
+              updateProgress();
+            },
+            signal,
+          );
+          // MOVE it to the worker immediately to free main thread RAM
+          return this.sendMessageToWorker(
             this.decoderWorker!,
             {
               type: "LOAD_MODEL",
@@ -188,8 +194,15 @@ class AISegmentationService {
               modelData: decData,
             },
             [decData],
-          ),
-        ]);
+          );
+        })();
+
+        // Wait for both components to be fully downloaded and ready in their workers
+        await Promise.all([encoderLoad, decoderLoad]);
+
+        if (onProgress) {
+          onProgress({ loaded: metadataTotal, total: metadataTotal, percent: 100 });
+        }
 
         this.currentModel = model;
         // CRITICAL: Clear the last model's embedding state to avoid 'input missing' errors
