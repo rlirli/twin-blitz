@@ -21,8 +21,9 @@ export function useAISegmentation(options: { image: ImageBitmap | null } = { ima
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // SESSION STATE
-  const [imageHash, setImageHash] = useState<string | null>(null);
+  // 1. ATOMIC SESSION (Image + Hash coupled together)
+  const [session, setSession] = useState<{ image: ImageBitmap; hash: string } | null>(null);
+
   const [idbHasEmbeddings, setIdbHasEmbeddings] = useState<boolean | null>(null);
   const [embeddingKey, setEmbeddingKey] = useState<string | null>(null);
   const [isAIEncoding, setIsAIEncoding] = useState(false);
@@ -42,16 +43,19 @@ export function useAISegmentation(options: { image: ImageBitmap | null } = { ima
   //   }
   // }, [currentModel]);
 
-  // 1. Stable Image Hashing (Once per image)
+  // Hashing Effect: Couples the image with its hash to prevent "ghost checks"
   useEffect(() => {
     if (!image) {
-      setImageHash(null);
+      setSession(null);
       setIdbHasEmbeddings(null);
+      setEmbeddingKey(null);
       return;
     }
     let isCancelled = false;
     hashImage(image).then((hash) => {
-      if (!isCancelled) setImageHash(hash);
+      if (!isCancelled) {
+        setSession({ image, hash });
+      }
     });
     return () => {
       isCancelled = true;
@@ -68,16 +72,16 @@ export function useAISegmentation(options: { image: ImageBitmap | null } = { ima
       setDownloadProgress(null);
       setError(null);
 
-      // Eagerly reset session state
+      // Eagerly reset session result state (but keep the session itself)
       setEmbeddingKey(null);
       setLastAIOutput(null);
       setLastRelClick(null);
       setIdbHasEmbeddings(null);
 
-      // Proactively check IDB if we already have the hash
-      if (imageHash) {
+      // Proactively check IDB if image session already exists
+      if (session) {
         aiSegmentationService
-          .isEmbeddingCached(modelId, nextModel.version, imageHash)
+          .isEmbeddingCached(modelId, nextModel.version, session.hash)
           .then((exists) => {
             // Only update if we are still targeting this model
             if (manualLoadInProgress.current === modelId) {
@@ -97,7 +101,7 @@ export function useAISegmentation(options: { image: ImageBitmap | null } = { ima
         if (manualLoadInProgress.current === modelId) manualLoadInProgress.current = null;
       }
     },
-    [imageHash],
+    [session],
   );
 
   // Auto-load last used model
@@ -121,29 +125,30 @@ export function useAISegmentation(options: { image: ImageBitmap | null } = { ima
     };
   }, [loadModel]);
 
-  // PROACTIVE ENCODING EFFECT
+  // 2. PROACTIVE ENCODING EFFECT (Atomic on Session + Model)
   useEffect(() => {
     let isCancelled = false;
-    if (!image || !currentModel || !imageHash) {
+    if (!session || !currentModel) {
       setEmbeddingKey(null);
       setLastAIOutput(null);
       setLastRelClick(null);
       return;
     }
+
     console.debug("[useAISegmentation] Proactive embedding check for model:", currentModel.id);
     const runEncoding = async () => {
       try {
-        // 1. FAST CACHE CHECK (Using stable imageHash)
+        // 1. FAST CACHE CHECK
         const isCached = await aiSegmentationService.isEmbeddingCached(
           currentModel.id,
           currentModel.version,
-          imageHash,
+          session.hash,
         );
 
         if (!isCancelled) setIdbHasEmbeddings(isCached);
 
         if (isCached && !isCancelled) {
-          const key = getEmbeddingKey(currentModel.id, currentModel.version, imageHash);
+          const key = getEmbeddingKey(currentModel.id, currentModel.version, session.hash);
           setEmbeddingKey(key);
           console.debug(
             "[useAISegmentation] Embedding cache hit: using cached embedding for model:",
@@ -152,13 +157,13 @@ export function useAISegmentation(options: { image: ImageBitmap | null } = { ima
           return;
         }
 
-        // 2. FULL ENCODING (Only now do we show the spinner)
+        // 2. FULL ENCODING
         setIsAIEncoding(true);
         console.debug(
           "[useAISegmentation] Embedding cache miss: triggering proactive encoding for model:",
           currentModel.id,
         );
-        const promise = aiSegmentationService.encodeImage(image, imageHash);
+        const promise = aiSegmentationService.encodeImage(session.image, session.hash);
         encodingPromiseRef.current = promise;
         const key = await promise;
 
@@ -181,11 +186,10 @@ export function useAISegmentation(options: { image: ImageBitmap | null } = { ima
     return () => {
       isCancelled = true;
     };
-  }, [image, currentModel, imageHash]);
+  }, [session, currentModel]);
 
   /**
-   * SMART decodePoints - No embeddingKey needed from UI.
-   * Internally manages re-encoding/awaiting if necessary.
+   * SMART decodePoints - Internally manages re-encoding/awaiting.
    */
   const decodePoints = useCallback(
     async (points: Point[]): Promise<Mask> => {
@@ -193,22 +197,23 @@ export function useAISegmentation(options: { image: ImageBitmap | null } = { ima
       setLastAIOutput(null);
 
       // Track click for debug visualization
-      if (points.length > 0 && image) {
-        setLastRelClick({ x: points[0].x / image.width, y: points[0].y / image.height });
+      if (points.length > 0 && session) {
+        setLastRelClick({
+          x: points[0].x / session.image.width,
+          y: points[0].y / session.image.height,
+        });
       }
       try {
         let activeKey = embeddingKey;
 
         // ENSURE EMBEDDING KEY IS COMPATIBLE WITH CURRENT MODEL
-        // This avoids the 'input missing' ONNX errors when switching models
         if (!activeKey || !activeKey.startsWith(currentModel?.id || "")) {
           console.log(`[useAISegmentation] Waiting for compatible embedding...`);
 
           if (encodingPromiseRef.current) {
             activeKey = await encodingPromiseRef.current;
-          } else if (image) {
-            const hash = await hashImage(image);
-            activeKey = await aiSegmentationService.encodeImage(image, hash);
+          } else if (session) {
+            activeKey = await aiSegmentationService.encodeImage(session.image, session.hash);
             setEmbeddingKey(activeKey);
           } else {
             throw new Error("AI session not ready: No image or embedding available.");
@@ -227,7 +232,7 @@ export function useAISegmentation(options: { image: ImageBitmap | null } = { ima
         setIsAISegmenting(false);
       }
     },
-    [image, currentModel, embeddingKey],
+    [session, currentModel, embeddingKey],
   );
 
   return {
@@ -248,7 +253,7 @@ export function useAISegmentation(options: { image: ImageBitmap | null } = { ima
 
     // Debug data (Consolidated for AISegmentationDebugWindow)
     debug: {
-      inputImage: image,
+      inputImage: session?.image || null,
       outputMask: lastAIOutput,
       isEncoding: isAIEncoding,
       isDecoding: isAISegmenting,
