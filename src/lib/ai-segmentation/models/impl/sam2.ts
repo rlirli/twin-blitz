@@ -37,13 +37,13 @@ export class SAM2Model implements SegmentationModel {
 
       try {
         console.info(`[SAM2Model] Tier 1: Attempting WebGPU for ${name}...`);
-        return await ort.InferenceSession.create(data.slice(0), commonOptions);
+        return await ort.InferenceSession.create(data, commonOptions);
       } catch (err: any) {
         console.warn(`[SAM2Model] Tier 1 (WebGPU) failed for ${name}:`, err.message || err);
 
         try {
           console.info(`[SAM2Model] Tier 2: Attempting WASM (Optimized) for ${name}...`);
-          return await ort.InferenceSession.create(data.slice(0), {
+          return await ort.InferenceSession.create(data, {
             executionProviders: ["wasm"],
             graphOptimizationLevel: "all",
           });

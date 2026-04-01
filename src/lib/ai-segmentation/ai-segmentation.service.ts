@@ -53,17 +53,21 @@ class AISegmentationService {
     const cache = await caches.open("ai-models-v1");
     const cachedResponse = await cache.match(url);
     if (cachedResponse) {
-      const buffer = await cachedResponse.arrayBuffer();
-      // No onProgress call for cached models
-      return buffer;
+      return await cachedResponse.arrayBuffer();
     }
 
     const response = await fetch(url, { signal });
     if (!response.ok) throw new Error(`Failed to fetch model from ${url}`);
 
+    if (!onProgress) {
+      const buffer = await response.clone().arrayBuffer();
+      await cache.put(url, response);
+      return buffer;
+    }
+
+    // Progress-aware fetch
     const contentLength = response.headers.get("content-length");
     const total = contentLength ? parseInt(contentLength, 10) : 0;
-
     if (!response.body) throw new Error("Response body is null");
 
     const reader = response.body.getReader();
@@ -73,11 +77,9 @@ class AISegmentationService {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-
       chunks.push(value);
       loaded += value.length;
-
-      onProgress?.(loaded, total);
+      onProgress(loaded, total);
     }
 
     const buffer = new Uint8Array(loaded);
@@ -87,7 +89,8 @@ class AISegmentationService {
       offset += chunk.length;
     }
 
-    await cache.put(url, new Response(buffer.slice(0))); // cache a copy
+    // Cache the buffer directly to avoid another round of reading
+    await cache.put(url, new Response(buffer));
     return buffer.buffer;
   }
 
@@ -146,38 +149,46 @@ class AISegmentationService {
           }
         };
 
-        const [encData, decData] = await Promise.all([
-          this.fetchAndCacheModel(
-            model.encoderUrl,
-            (loaded, total) => {
-              encoderLoadedBytes = loaded;
-              encoderTotalBytes = total;
-              updateProgress();
-            },
-            signal,
-          ),
-          this.fetchAndCacheModel(
-            model.decoderUrl,
-            (loaded, total) => {
-              decoderLoadedBytes = loaded;
-              decoderTotalBytes = total;
-              updateProgress();
-            },
-            signal,
-          ),
-        ]);
+        const encData = await this.fetchAndCacheModel(
+          model.encoderUrl,
+          (loaded, total) => {
+            encoderLoadedBytes = loaded;
+            encoderTotalBytes = total;
+            updateProgress();
+          },
+          signal,
+        );
 
+        const decData = await this.fetchAndCacheModel(
+          model.decoderUrl,
+          (loaded, total) => {
+            decoderLoadedBytes = loaded;
+            decoderTotalBytes = total;
+            updateProgress();
+          },
+          signal,
+        );
+
+        // Send to workers with transfers to free memory in main thread immediately
         await Promise.all([
-          this.sendMessageToWorker(this.encoderWorker!, {
-            type: "LOAD_MODEL",
-            modelId,
-            modelData: encData,
-          }),
-          this.sendMessageToWorker(this.decoderWorker!, {
-            type: "LOAD_MODEL",
-            modelId,
-            modelData: decData,
-          }),
+          this.sendMessageToWorker(
+            this.encoderWorker!,
+            {
+              type: "LOAD_MODEL",
+              modelId,
+              modelData: encData,
+            },
+            [encData],
+          ),
+          this.sendMessageToWorker(
+            this.decoderWorker!,
+            {
+              type: "LOAD_MODEL",
+              modelId,
+              modelData: decData,
+            },
+            [decData],
+          ),
         ]);
 
         this.currentModel = model;
@@ -263,7 +274,7 @@ class AISegmentationService {
     this.currentModel = null;
   }
 
-  private sendMessageToWorker<T>(worker: Worker, msg: any): Promise<T> {
+  private sendMessageToWorker<T>(worker: Worker, msg: any, transfer?: Transferable[]): Promise<T> {
     return new Promise((resolve, reject) => {
       const handler = (e: MessageEvent<T | any>) => {
         if (e.data.type === "ERROR") {
@@ -275,7 +286,11 @@ class AISegmentationService {
         }
       };
       worker.addEventListener("message", handler);
-      worker.postMessage(msg);
+      if (transfer) {
+        worker.postMessage(msg, transfer);
+      } else {
+        worker.postMessage(msg);
+      }
     });
   }
 }

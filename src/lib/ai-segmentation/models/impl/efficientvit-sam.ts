@@ -33,7 +33,8 @@ export class EfficientViTSAMModel implements SegmentationModel {
     const loadSession = async (data: ArrayBuffer, name: string) => {
       if (data.byteLength === 0) return null;
       try {
-        return await ort.InferenceSession.create(data.slice(0), commonOptions);
+        // Try with original data - ONNX Runtime might own it
+        return await ort.InferenceSession.create(data, commonOptions);
       } catch (err: any) {
         console.warn(`[EfficientViT] WebGPU failed for ${name}, falling back to WASM...`, err);
         return await ort.InferenceSession.create(data, { executionProviders: ["wasm"] });
