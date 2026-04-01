@@ -50,8 +50,7 @@ Visit [http://localhost:3000](http://localhost:3000) to personalize your deck, t
 - [x] feat: Export as .zip of image files
 - [x] fix: "Load defaults" should not replace already filled slots
 - [x] feat: Other deck sizes (p=3, p=5, etc.)
-- [x] feat: AI segmentation
-- [ ] fix: After switchwing from one model to another, the decodePoints click does not await embeddings of new model, resulting in "AI Segmentation failed: Error: Decoding failed: input 'high_res_feats_0' is missing in 'feeds'.".
+- [x] feat: AI sticker segmentation
 - [ ] feat: Bulk encoding (or even bulk decoding)
 - [ ] feat: Additional default symbol sets
 - [ ] feat: Alternative print modes (4 cards per A4 page, etc.)
