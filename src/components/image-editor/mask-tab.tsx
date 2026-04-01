@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 
 import {
   Square,
@@ -183,18 +183,25 @@ export const MaskTab: React.FC<MaskTabProps> = ({
    * from the additive silhouette WITHIN the private buffer, which is then applied
    * as a single holistic eraser to the shroud.
    */
-  useEffect(() => {
-    if (cutterRef.current && img && localMaskData.length > 0) {
-      cutterRef.current.cache({
-        x: -20,
-        y: -20,
-        width: cropW + 40,
-        height: cropH + 40,
-      });
-    } else if (cutterRef.current) {
+  // Cache management for the cutter group
+  const recalculateCache = useCallback(() => {
+    if (cutterRef.current) {
       cutterRef.current.clearCache();
+      if (img && localMaskData.length > 0) {
+        cutterRef.current.cache({
+          x: -20,
+          y: -20,
+          width: cropW + 40,
+          height: cropH + 40,
+        });
+      }
+      cutterRef.current.getLayer()?.batchDraw();
     }
-  }, [localMaskData, img, cropW, cropH]);
+  }, [img, localMaskData.length, cropW, cropH]);
+
+  useEffect(() => {
+    recalculateCache();
+  }, [localMaskData, img, recalculateCache]);
 
   // Interaction handlers (Now in B-space!)
   const handleMouseDown = (e: any) => {
@@ -565,6 +572,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
                       path={path}
                       isPreview={false}
                       transformation={transformation}
+                      onLoad={recalculateCache}
                     />
                   ))}
                 </Group>
@@ -631,6 +639,7 @@ function MaskShape({
   strokeOverride,
   compositeOverride,
   transformation,
+  onLoad,
   isGeometricOutlineOnly = false,
 }: any) {
   const isGeometricPreview = isPreview && (path.tool !== "brush" || isGeometricOutlineOnly);
@@ -688,14 +697,28 @@ function MaskShape({
   }
 
   if (path.tool === "ai" && path.maskDataUrl) {
-    return <AIMaskShape path={path} commonProps={commonProps} transformation={transformation} />;
+    return (
+      <AIMaskShape
+        path={path}
+        commonProps={commonProps}
+        transformation={transformation}
+        onLoad={onLoad}
+      />
+    );
   }
 
   return null;
 }
 
-function AIMaskShape({ path, commonProps, transformation }: any) {
+function AIMaskShape({ path, commonProps, transformation, onLoad }: any) {
   const [maskImg] = useImage(path.maskDataUrl);
+
+  useEffect(() => {
+    if (maskImg) {
+      onLoad?.();
+    }
+  }, [maskImg, onLoad]);
+
   if (!maskImg) return null;
 
   // Since AI masks are now A-space (Original size),
@@ -705,8 +728,8 @@ function AIMaskShape({ path, commonProps, transformation }: any) {
       image={maskImg}
       x={transformation.width / 2}
       y={transformation.height / 2}
-      offsetX={transformation.x + transformation.width / 2}
-      offsetY={transformation.y + transformation.height / 2}
+      offsetX={(transformation.x || 0) + (transformation.width || 0) / 2}
+      offsetY={(transformation.y || 0) + (transformation.height || 0) / 2}
       rotation={-transformation.rotation}
       {...commonProps}
       fill={undefined}

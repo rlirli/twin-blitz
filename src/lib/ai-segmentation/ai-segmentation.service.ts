@@ -197,6 +197,8 @@ class AISegmentationService {
           );
         })();
 
+        this.currentModel = model;
+
         // Wait for both components to be fully downloaded and ready in their workers
         await Promise.all([encoderLoad, decoderLoad]);
 
@@ -204,7 +206,6 @@ class AISegmentationService {
           onProgress({ loaded: metadataTotal, total: metadataTotal, percent: 100 });
         }
 
-        this.currentModel = model;
         // CRITICAL: Clear the last model's embedding state to avoid 'input missing' errors
         // during architecture transitions (e.g. EfficientViT -> SAM2).
         localStorage.removeItem("last-ai-embedding-key");
