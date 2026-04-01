@@ -84,7 +84,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "flex h-full items-center gap-2 rounded-xl bg-slate-900/80 px-3 py-1.5 text-xs font-bold ring-1 ring-white/10 backdrop-blur-xl transition-all hover:bg-slate-800",
+          "flex h-full items-center gap-2 rounded-2xl bg-slate-900/80 px-3 py-1.5 text-xs font-bold ring-1 ring-white/10 backdrop-blur-xl transition-all hover:bg-slate-800",
           !displayModel && !hasAnyCached && "animate-pulse text-amber-400 ring-amber-500/50",
           !displayModel && hasAnyCached && "text-slate-400 ring-white/10",
         )}

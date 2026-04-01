@@ -319,11 +319,33 @@ class AISegmentationService {
   }
 
   /**
+   * Internal helper to make sure a model is loaded, optionally restoring the last active one.
+   */
+  private async ensureModelLoaded() {
+    if (this.currentModel) return;
+    if (this.loadingPromise) {
+      await this.loadingPromise;
+      return;
+    }
+
+    if (typeof window === "undefined") return;
+    const lastId = localStorage.getItem("last-ai-model-id") as ModelId;
+    if (lastId && AVAILABLE_MODELS[lastId]) {
+      console.info(`[AISegmentationService] Autoloading last active model: ${lastId}`);
+      try {
+        await this.loadModel(lastId);
+      } catch (e) {
+        console.warn(`[AISegmentationService] Failed to autoload last model:`, e);
+      }
+    }
+  }
+
+  /**
    * Encodes an image into embeddings. Skips if already in IndexedDB.
    */
   async encodeImage(image: ImageBitmap, imageHash: string): Promise<string> {
-    if (this.loadingPromise) await this.loadingPromise;
-    if (!this.currentModel) throw new Error("No model loaded");
+    await this.ensureModelLoaded();
+    if (!this.currentModel) throw new Error("No AI model loaded (Select one first)");
     this.ensureWorkers();
 
     const embeddingKey = getEmbeddingKey(
@@ -359,8 +381,8 @@ class AISegmentationService {
    */
   async decodePoints(embeddingKey: string, points: Point[]): Promise<Mask> {
     // Mask type is in utils
-    if (this.loadingPromise) await this.loadingPromise;
-    if (!this.currentModel) throw new Error("No model loaded");
+    await this.ensureModelLoaded();
+    if (!this.currentModel) throw new Error("No AI model loaded (Select one first)");
     this.ensureWorkers();
 
     const response = await this.sendMessageToWorker<DecoderResponse>(this.decoderWorker!, {

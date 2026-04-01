@@ -235,11 +235,11 @@ export const MaskTab: React.FC<MaskTabProps> = ({
 
     // Use B-space position directly (no transformPointB2A needed as input is now the crop)
     const pos = groupRef.current.getRelativePointerPosition();
-    console.log("[handleAIClick] pos", pos);
+    console.debug("[handleAIClick] pos", pos);
 
     // Boundary check
     if (pos.x < 0 || pos.x > cropW || pos.y < 0 || pos.y > cropH) {
-      console.warn("Click outside image bounds", pos);
+      console.debug("[handleAIClick] Click outside image bounds", pos);
       return;
     }
 
@@ -368,7 +368,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
   return (
     <div className="relative flex h-full flex-col overflow-hidden">
       {/* 1. Top Context Bar (Floating) */}
-      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-2 pl-4">
         {tool === "ai" && (
           <ModelSelector
             currentModel={currentModel}
@@ -377,10 +377,10 @@ export const MaskTab: React.FC<MaskTabProps> = ({
             isLoading={isModelLoading}
             downloadProgress={downloadProgress}
             error={error}
-            className="h-[50px] rounded-2xl"
+            className="h-12"
           />
         )}
-        <div className="flex h-12 items-center justify-center rounded-2xl bg-slate-900/80 p-1.5 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl">
+        <div className="flex h-12 items-center justify-center rounded-2xl bg-slate-900/80 py-1.5 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl">
           <ActionButton onClick={handleUndo} icon={<Undo2 size={18} />} />
           <div className="mx-1 h-4 w-px bg-slate-700" />
           <ActionButton
