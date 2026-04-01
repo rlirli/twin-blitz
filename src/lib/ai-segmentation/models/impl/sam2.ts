@@ -4,7 +4,7 @@
  */
 
 import { get, set } from "idb-keyval";
-import * as ort from "onnxruntime-web";
+import * as ort from "onnxruntime-web/webgpu";
 
 import { getEmbeddingKey } from "../../core/utils/embedding-utils";
 import { Mask } from "../../core/utils/mask-utils";
@@ -14,6 +14,7 @@ import {
   mapPointToLetterbox,
   undoLetterbox,
 } from "../../core/utils/segmentation-utils";
+import { getSafeExecutionProviders, getSafeOptimizationLevel } from "../model-factory";
 import { Point, SegmentationModel, ModelMetadata } from "../segmentation-model";
 
 export class SAM2Model implements SegmentationModel {
@@ -23,12 +24,9 @@ export class SAM2Model implements SegmentationModel {
   constructor(public readonly metadata: ModelMetadata) {}
 
   async load(encoderData: ArrayBuffer, decoderData: ArrayBuffer): Promise<void> {
-    const isMobile =
-      typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
     const commonOptions: ort.InferenceSession.SessionOptions = {
-      executionProviders: ["webgpu", "wasm"],
-      graphOptimizationLevel: isMobile ? "extended" : "all", // "all" consumes massive RAM on models like SAM2
+      executionProviders: getSafeExecutionProviders(),
+      graphOptimizationLevel: getSafeOptimizationLevel(),
     };
 
     /**
@@ -39,8 +37,24 @@ export class SAM2Model implements SegmentationModel {
       if (data.byteLength === 0) return null;
 
       try {
-        console.info(`[SAM2Model] Tier 1: Attempting WebGPU for ${name}...`);
-        return await ort.InferenceSession.create(data, commonOptions);
+        console.info(
+          `[SAM2Model] Loading ${name} with providers:`,
+          commonOptions.executionProviders,
+        );
+        const session = await ort.InferenceSession.create(data, commonOptions);
+
+        // Access the hardware descriptor to confirm WebGPU is active
+        try {
+          const device = await (ort.env as any).webgpu.device;
+          if (device) {
+            console.info(`[SAM2Model] Hardware confirmed: WebGPU Device found`, device);
+          }
+        } catch (e) {
+          // Device might not be initialized yet if fallback was immediate
+          console.warn(`[SAM2Model] WebGPU Device not found`, e);
+        }
+
+        return session;
       } catch (err: any) {
         console.warn(`[SAM2Model] Tier 1 (WebGPU) failed for ${name}:`, err.message || err);
 
