@@ -52,6 +52,22 @@ export function transformPointB2A(px: number, py: number, t: Transformation): [n
 }
 
 /**
+ * Applies a 2D transform to a canvas context that maps Raw Image Space (A-Space)
+ * to the Upright Cropped Workspace (B-Space).
+ */
+export function applyCropTransform(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  t: Transformation,
+) {
+  const cropW = t.width;
+  const cropH = t.height;
+
+  ctx.translate(cropW / 2, cropH / 2);
+  ctx.rotate((-t.rotation * Math.PI) / 180);
+  ctx.translate(-(t.x + cropW / 2), -(t.y + cropH / 2));
+}
+
+/**
  * Creates an ImageBitmap of the current crop from a source image.
  * This encapsulates the A-Space to B-Space rendering logic used for AI input.
  */
@@ -71,9 +87,7 @@ export async function createCropBitmap(
   if (!ctx) throw new Error("Could not get 2d context for OffscreenCanvas");
 
   // Replicate the B-space upright crop
-  ctx.translate(cropW / 2, cropH / 2);
-  ctx.rotate((-transformation.rotation * Math.PI) / 180);
-  ctx.translate(-(transformation.x + cropW / 2), -(transformation.y + cropH / 2));
+  applyCropTransform(ctx, transformation);
   ctx.drawImage(img, 0, 0);
 
   return canvas.transferToImageBitmap();

@@ -7,7 +7,12 @@ export const SOURCE_IMAGE_MAX_DIMENSION = 2000;
 /** Quality setting for compressed WebP images (0.0 to 1.0). */
 export const SYMBOL_STORAGE_QUALITY = 0.85;
 
-import { Transformation, transformPointA2B, transformPointB2A } from "./coordinate-math";
+import {
+  Transformation,
+  transformPointA2B,
+  transformPointB2A,
+  applyCropTransform,
+} from "./coordinate-math";
 
 export interface MaskPath {
   tool: "brush" | "lasso" | "rectangle" | "ellipse" | "ai";
@@ -216,9 +221,7 @@ export async function generateSticker(
             });
 
             mCtx.save();
-            mCtx.translate(cropW / 2, cropH / 2);
-            mCtx.rotate((-transformation.rotation * Math.PI) / 180);
-            mCtx.translate(-(transformation.x + cropW / 2), -(transformation.y + cropH / 2));
+            applyCropTransform(mCtx, transformation);
             mCtx.drawImage(maskImg, 0, 0);
             mCtx.restore();
           } else {
@@ -236,9 +239,7 @@ export async function generateSticker(
         if (!tCtx) throw new Error("Transform context unavailable");
 
         tCtx.save();
-        tCtx.translate(cropW / 2, cropH / 2);
-        tCtx.rotate((-transformation.rotation * Math.PI) / 180);
-        tCtx.translate(-(transformation.x + cropW / 2), -(transformation.y + cropH / 2));
+        applyCropTransform(tCtx, transformation);
         tCtx.drawImage(img, 0, 0);
         tCtx.restore();
 
