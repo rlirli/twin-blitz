@@ -23,8 +23,12 @@ export class EfficientViTSAMModel implements SegmentationModel {
   constructor(public readonly metadata: ModelMetadata) {}
 
   async load(encoderData: ArrayBuffer, decoderData: ArrayBuffer): Promise<void> {
+    const isMobile =
+      typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
     const commonOptions: ort.InferenceSession.SessionOptions = {
       executionProviders: ["webgpu", "wasm"],
+      graphOptimizationLevel: isMobile ? "extended" : "all", // "all" is too heavy for mobile RAM
     };
 
     /**

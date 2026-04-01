@@ -23,9 +23,12 @@ export class SAM2Model implements SegmentationModel {
   constructor(public readonly metadata: ModelMetadata) {}
 
   async load(encoderData: ArrayBuffer, decoderData: ArrayBuffer): Promise<void> {
+    const isMobile =
+      typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
     const commonOptions: ort.InferenceSession.SessionOptions = {
       executionProviders: ["webgpu", "wasm"],
-      graphOptimizationLevel: "all",
+      graphOptimizationLevel: isMobile ? "extended" : "all", // "all" consumes massive RAM on models like SAM2
     };
 
     /**
