@@ -72,6 +72,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
   const [lastAIInput, setLastAIInput] = useState<ImageBitmap | null>(null);
   const [lastAIOutput, setLastAIOutput] = useState<Mask | null>(null);
   const [aiEmbeddingKey, setAiEmbeddingKey] = useState<string | null>(null);
+  const [isAIEncoding, setIsAIEncoding] = useState(false);
   const [lastRelClick, setLastRelClick] = useState<{ x: number; y: number } | null>(null);
 
   // Local state for workspace-relative masks (B-space)
@@ -123,6 +124,10 @@ export const MaskTab: React.FC<MaskTabProps> = ({
   useEffect(() => {
     if (!img || !currentModel) return;
 
+    // Reset embedding state immediately on model switch
+    setAiEmbeddingKey(null);
+    setLastAIOutput(null);
+
     let isCancelled = false;
     const triggerEncoding = async () => {
       // 1. Create a bitmap of the current CROP for the AI
@@ -146,10 +151,14 @@ export const MaskTab: React.FC<MaskTabProps> = ({
       if (isCancelled) return;
 
       setLastAIInput(bitmap);
-      const key = await encodeImage(bitmap, hash);
-      if (isCancelled) return;
-
-      setAiEmbeddingKey(key);
+      setIsAIEncoding(true);
+      try {
+        const key = await encodeImage(bitmap, hash);
+        if (isCancelled) return;
+        setAiEmbeddingKey(key);
+      } finally {
+        if (!isCancelled) setIsAIEncoding(false);
+      }
     };
 
     triggerEncoding();
@@ -601,7 +610,10 @@ export const MaskTab: React.FC<MaskTabProps> = ({
         <AISegmentationDebugWindow
           inputImage={lastAIInput}
           outputMask={lastAIOutput}
-          isProcessing={isAISegmenting}
+          isEncoding={isAIEncoding}
+          isDecoding={isAISegmenting}
+          hasEmbeddings={!!aiEmbeddingKey}
+          currentModelId={currentModel?.id || "None"}
           lastRelClick={lastRelClick}
           onClose={() => setShowDebug(false)}
         />

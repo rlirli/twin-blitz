@@ -7,7 +7,10 @@ import { Mask } from "../core/utils/mask-utils";
 interface AISegmentationDebugWindowProps {
   inputImage: ImageBitmap | null;
   outputMask: Mask | null;
-  isProcessing: boolean;
+  isEncoding: boolean;
+  isDecoding: boolean;
+  hasEmbeddings: boolean;
+  currentModelId: string | null;
   lastRelClick?: { x: number; y: number } | null;
   onClose: () => void;
 }
@@ -15,7 +18,10 @@ interface AISegmentationDebugWindowProps {
 export const AISegmentationDebugWindow: React.FC<AISegmentationDebugWindowProps> = ({
   inputImage,
   outputMask,
-  isProcessing,
+  isEncoding,
+  isDecoding,
+  hasEmbeddings,
+  currentModelId,
   lastRelClick,
   onClose,
 }) => {
@@ -93,7 +99,9 @@ export const AISegmentationDebugWindow: React.FC<AISegmentationDebugWindowProps>
           <span className="text-[10px] font-black tracking-widest text-slate-500 uppercase">
             AI Segmentation Debug
           </span>
-          {isProcessing && <Loader2 size={10} className="animate-spin text-indigo-400" />}
+          {(isEncoding || isDecoding) && (
+            <Loader2 size={10} className="animate-spin text-indigo-400" />
+          )}
         </div>
         <button onClick={onClose} className="rounded-md p-1 hover:bg-white/5">
           <X size={12} className="text-slate-400" />
@@ -102,27 +110,59 @@ export const AISegmentationDebugWindow: React.FC<AISegmentationDebugWindowProps>
 
       <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">
-          <span className="text-[9px] font-bold text-slate-600">INPUT</span>
+          <span className="text-[9px] font-bold text-slate-600 uppercase">Input</span>
           <div className="aspect-square w-full overflow-hidden rounded-lg bg-black/40 ring-1 ring-white/5">
             {inputUrl && (
               <img src={inputUrl} className="h-full w-full object-contain" alt="Input for AI" />
             )}
           </div>
         </div>
+
         <div className="flex flex-col gap-1">
-          <span className="text-[9px] font-bold text-slate-600">MASK</span>
-          <div className="aspect-square w-full overflow-hidden rounded-lg bg-black/40 ring-1 ring-white/5">
-            {maskUrl && (
+          <span className="text-[9px] font-bold text-slate-600 uppercase">Mask</span>
+          <div className="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg bg-black/40 ring-1 ring-white/5">
+            {maskUrl ? (
               <img src={maskUrl} className="h-full w-full object-contain" alt="AI Output Mask" />
+            ) : isDecoding ? (
+              <div className="flex flex-col items-center gap-1.5 opacity-50 grayscale">
+                <Loader2 size={14} className="animate-spin text-indigo-400" />
+                <span className="text-[8px] font-bold tracking-tighter text-indigo-200">
+                  DECODING...
+                </span>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center opacity-30">
+                <span className="text-[8px] font-medium text-slate-500">Awaiting Click</span>
+              </div>
             )}
           </div>
         </div>
       </div>
-      {!outputMask && !isProcessing && (
-        <div className="mt-1 text-center text-[9px] text-slate-500">
-          Click on the canvas to segment
-        </div>
-      )}
+
+      <div className="mt-1 flex flex-col gap-0.5 border-t border-white/5 pt-2">
+        {isEncoding ? (
+          <div className="flex items-center gap-2">
+            <Loader2 size={8} className="animate-spin text-amber-500" />
+            <span className="text-[9px] font-medium text-amber-500/80">
+              {currentModelId} encoding image...
+            </span>
+          </div>
+        ) : hasEmbeddings ? (
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+            <span className="text-[9px] font-bold text-emerald-500">
+              {currentModelId} embeddings exist
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 opacity-50">
+            <div className="h-1.5 w-1.5 rounded-full bg-slate-700" />
+            <span className="text-[9px] font-medium text-slate-500">
+              No embeddings for {currentModelId}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

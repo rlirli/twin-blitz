@@ -165,6 +165,9 @@ class AISegmentationService {
         ]);
 
         this.currentModel = model;
+        // CRITICAL: Clear the last model's embedding state to avoid 'input missing' errors
+        // during architecture transitions (e.g. EfficientViT -> SAM2).
+        localStorage.removeItem("last-ai-embedding-key");
         localStorage.setItem("last-ai-model-id", modelId);
       } finally {
         this.loadingModelId = null;
