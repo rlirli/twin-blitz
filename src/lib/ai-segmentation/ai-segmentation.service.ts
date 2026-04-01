@@ -164,6 +164,13 @@ class AISegmentationService {
     const signal = this.abortController.signal;
 
     this.loadingPromise = (async () => {
+      const isCached = await this.isModelCached(modelId);
+      if (!isCached) {
+        console.log(
+          `Starting AI model download: ${model.name}\n- Encoder URL: ${model.encoderUrl}\n- Decoder URL: ${model.decoderUrl}`,
+        );
+      }
+
       try {
         let encoderLoadedBytes = 0;
         let encoderTotalBytes = 0;
@@ -230,6 +237,10 @@ class AISegmentationService {
 
         // Wait for both components to be fully downloaded and ready in their workers
         await Promise.all([encoderLoad, decoderLoad]);
+
+        if (!isCached) {
+          console.log(`AI model download complete: ${model.name}`);
+        }
 
         if (onProgress) {
           onProgress({ loaded: metadataTotal, total: metadataTotal, percent: 100 });
