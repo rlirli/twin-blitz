@@ -27,6 +27,8 @@ import {
   hashImage,
   maskToPNG,
   uncropMask,
+  maskToPolygons,
+  simplifyPolygon,
   Mask,
 } from "@/lib/ai-segmentation";
 import { logDebugImage } from "@/lib/ai-segmentation/core/utils/debug-utils";
@@ -73,6 +75,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
   const [lastAIOutput, setLastAIOutput] = useState<Mask | null>(null);
   const [aiEmbeddingKey, setAiEmbeddingKey] = useState<string | null>(null);
   const [lastRelClick, setLastRelClick] = useState<{ x: number; y: number } | null>(null);
+  const [aiFormat, setAiFormat] = useState<"image" | "vector">("vector"); // Defaulting to vector as requested
 
   // Local state for workspace-relative masks (B-space)
   // This allows us to work UPRIGHT and AXIS-ALIGNED easily.
@@ -236,22 +239,44 @@ export const MaskTab: React.FC<MaskTabProps> = ({
 
       if (!img) throw new Error("Image not loaded");
 
-      // 1. PROJECT B-space (crop) mask back to A-space (original image)
-      // This is crucial: the AI ran on the CROP, but we store in the ORIGINAL IMAGE resolution.
-      const aSpaceMask = await uncropMask(mask, transformation, img.width, img.height);
+      let newPaths: MaskPath[] = [];
 
-      // 2. Convert mask to PNG for storage
-      const dataUrl = await maskToPNG(aSpaceMask);
+      if (aiFormat === "vector") {
+        // --- VECTOR PATH CONVERSION (The alternative shape for Konva) ---
+        // We use the original 'mask' (B-space/workspace-relative) to generate local points.
+        const polygons = maskToPolygons(mask);
+        
+        // Ensure points are scaled to match the crop resolution if mask dimensions differ
+        const scaleX = cropW / mask.width;
+        const scaleY = cropH / mask.height;
 
-      // 3. Create new MaskPath (stored with A-space data)
-      const newPath: MaskPath = {
-        tool: "ai",
-        mode,
-        points: [pos.x, pos.y], // B-space points, transformed to A-space below
-        maskDataUrl: dataUrl,
-      };
+        newPaths = polygons.map((poly) => {
+          const scaledPoly = [];
+          for (let i = 0; i < poly.length; i += 2) {
+            scaledPoly.push(poly[i] * scaleX, poly[i + 1] * scaleY);
+          }
+          return {
+            tool: "lasso",
+            mode,
+            points: simplifyPolygon(scaledPoly, 2.0),
+          };
+        });
+      } else {
+        // --- RASTER PNG STORAGE (Original behavior) ---
+        // PNG masks are stored in A-space (original image size) to remain resolution-independent.
+        const aSpaceMask = await uncropMask(mask, transformation, img.width, img.height);
+        const dataUrl = await maskToPNG(aSpaceMask);
+        newPaths = [
+          {
+            tool: "ai",
+            mode,
+            points: [pos.x, pos.y],
+            maskDataUrl: dataUrl,
+          },
+        ];
+      }
 
-      const newLocalMask = mode === "replace" ? [newPath] : [...localMaskData, newPath];
+      const newLocalMask = mode === "replace" ? newPaths : [...localMaskData, ...newPaths];
       setLocalMaskData(newLocalMask);
 
       // Sync back to parent (this will convert all points to A-space for storage)
@@ -363,6 +388,32 @@ export const MaskTab: React.FC<MaskTabProps> = ({
             downloadProgress={downloadProgress}
             className="h-[50px] rounded-2xl"
           />
+        )}
+        {tool === "ai" && (
+          <div className="flex h-12 items-center gap-1.5 rounded-2xl bg-slate-900/80 p-1.5 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl">
+            <button
+              onClick={() => setAiFormat("vector")}
+              className={cn(
+                "flex h-full items-center gap-2 rounded-xl px-3 text-[10px] font-black uppercase transition-all",
+                aiFormat === "vector"
+                  ? "bg-indigo-600 text-white shadow-lg"
+                  : "text-slate-400 hover:bg-slate-800",
+              )}
+            >
+              Path
+            </button>
+            <button
+              onClick={() => setAiFormat("image")}
+              className={cn(
+                "flex h-full items-center gap-2 rounded-xl px-3 text-[10px] font-black uppercase transition-all",
+                aiFormat === "image"
+                  ? "bg-indigo-600 text-white shadow-lg"
+                  : "text-slate-400 hover:bg-slate-800",
+              )}
+            >
+              PNG
+            </button>
+          </div>
         )}
         <div className="flex h-12 items-center justify-center rounded-2xl bg-slate-900/80 p-1.5 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl">
           <ActionButton onClick={handleUndo} icon={<Undo2 size={18} />} />
