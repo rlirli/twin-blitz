@@ -23,6 +23,7 @@ class AISegmentationService {
   private currentModel: ModelInfo | null = null;
   private loadingModelId: ModelId | null = null;
   private loadingPromise: Promise<void> | null = null;
+  private abortController: AbortController | null = null;
 
   constructor() {
     // Lazy initialize as workers need to be created in the browser
@@ -47,6 +48,7 @@ class AISegmentationService {
   private async fetchAndCacheModel(
     url: string,
     onProgress?: (loaded: number, total: number) => void,
+    signal?: AbortSignal,
   ): Promise<ArrayBuffer> {
     const cache = await caches.open("ai-models-v1");
     const cachedResponse = await cache.match(url);
@@ -56,7 +58,7 @@ class AISegmentationService {
       return buffer;
     }
 
-    const response = await fetch(url);
+    const response = await fetch(url, { signal });
     if (!response.ok) throw new Error(`Failed to fetch model from ${url}`);
 
     const contentLength = response.headers.get("content-length");
@@ -114,8 +116,11 @@ class AISegmentationService {
       return this.loadingPromise;
     }
 
-    if (this.loadingPromise) {
-      throw new Error(`Already loading ${this.loadingModelId}. Please wait.`);
+    // Cancel previous load if still running
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+      this.loadingPromise = null;
     }
 
     const model = AVAILABLE_MODELS[modelId];
@@ -123,6 +128,9 @@ class AISegmentationService {
 
     this.ensureWorkers();
     this.loadingModelId = modelId;
+    this.abortController = new AbortController();
+    const signal = this.abortController.signal;
+
     this.loadingPromise = (async () => {
       try {
         let encoderLoadedBytes = 0;
@@ -139,16 +147,24 @@ class AISegmentationService {
         };
 
         const [encData, decData] = await Promise.all([
-          this.fetchAndCacheModel(model.encoderUrl, (loaded, total) => {
-            encoderLoadedBytes = loaded;
-            encoderTotalBytes = total;
-            updateProgress();
-          }),
-          this.fetchAndCacheModel(model.decoderUrl, (loaded, total) => {
-            decoderLoadedBytes = loaded;
-            decoderTotalBytes = total;
-            updateProgress();
-          }),
+          this.fetchAndCacheModel(
+            model.encoderUrl,
+            (loaded, total) => {
+              encoderLoadedBytes = loaded;
+              encoderTotalBytes = total;
+              updateProgress();
+            },
+            signal,
+          ),
+          this.fetchAndCacheModel(
+            model.decoderUrl,
+            (loaded, total) => {
+              decoderLoadedBytes = loaded;
+              decoderTotalBytes = total;
+              updateProgress();
+            },
+            signal,
+          ),
         ]);
 
         await Promise.all([
@@ -186,6 +202,7 @@ class AISegmentationService {
    * Encodes an image into embeddings. Skips if already in IndexedDB.
    */
   async encodeImage(image: ImageBitmap, imageHash: string): Promise<string> {
+    if (this.loadingPromise) await this.loadingPromise;
     if (!this.currentModel) throw new Error("No model loaded");
     this.ensureWorkers();
 
@@ -218,6 +235,7 @@ class AISegmentationService {
    */
   async decodePoints(embeddingKey: string, points: Point[]): Promise<Mask> {
     // Mask type is in utils
+    if (this.loadingPromise) await this.loadingPromise;
     if (!this.currentModel) throw new Error("No model loaded");
     this.ensureWorkers();
 

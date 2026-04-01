@@ -66,6 +66,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
     decodePoints,
     loadModel,
     downloadProgress,
+    error,
   } = useAISegmentation();
   const [isAISegmenting, setIsAISegmenting] = useState(false);
   const [showDebug, setShowDebug] = useState(true);
@@ -368,6 +369,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
             onSelect={loadModel}
             isLoading={isModelLoading}
             downloadProgress={downloadProgress}
+            error={error}
             className="h-[50px] rounded-2xl"
           />
         )}

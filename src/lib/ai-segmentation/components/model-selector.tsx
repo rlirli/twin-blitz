@@ -14,6 +14,7 @@ interface ModelSelectorProps {
   onSelect: (modelId: ModelId) => void;
   isLoading: boolean;
   downloadProgress?: DownloadProgress | null;
+  error?: string | null;
   className?: string;
 }
 
@@ -23,6 +24,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   onSelect,
   isLoading,
   downloadProgress,
+  error,
   className,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -87,25 +89,35 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           !displayModel && hasAnyCached && "text-slate-400 ring-white/10",
         )}
       >
-        <Sparkles size={14} className={cn(isLoading && "animate-pulse")} />
+        <Sparkles
+          size={14}
+          className={cn((isLoading || isDownloading) && "animate-pulse text-indigo-400")}
+        />
         <div className="flex flex-col items-start leading-tight">
           <span
             className={cn(
               (isDownloading || (isLoading && !isDownloading)) && "animate-pulse text-indigo-400",
+              error && "text-rose-400",
             )}
           >
-            {displayModel
-              ? displayModel.name
-              : hasAnyCached
-                ? "Select AI Model"
-                : "Download Model to Start"}
+            {error
+              ? "Download Failed"
+              : displayModel
+                ? displayModel.name
+                : hasAnyCached
+                  ? "Select AI Model"
+                  : "Download Model to Start"}
           </span>
-          {isDownloading && (
+          {isDownloading ? (
             <span className="mt-0.5 font-mono text-[9px] text-indigo-400">
               Downloading ({formatMB(downloadProgress.loaded)} / {formatMB(downloadProgress.total)}{" "}
               MB)
             </span>
-          )}
+          ) : error ? (
+            <span className="mt-0.5 max-w-[140px] truncate text-[9px] font-medium text-rose-500/80">
+              {error}
+            </span>
+          ) : null}
         </div>
         {isLoading ? (
           <Loader2 size={14} className="animate-spin opacity-50" />
@@ -134,9 +146,22 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                 "max-h-[60vh] overflow-y-auto",
               )}
             >
-              <div className="mb-2 px-3 py-1 text-[10px] font-black tracking-widest text-slate-500 uppercase">
-                Segmentation Models
+              <div className="mb-2 flex items-center justify-between px-3 py-1">
+                <span className="text-[10px] font-black tracking-widest text-slate-500 uppercase">
+                  Segmentation Models
+                </span>
+                {error && (
+                  <span className="animate-pulse text-[9px] font-bold text-rose-500">
+                    LOAD ERROR
+                  </span>
+                )}
               </div>
+
+              {error && (
+                <div className="mx-2 mb-3 rounded-lg border border-rose-500/10 bg-rose-500/5 px-2.5 py-2 text-[10px] font-medium text-rose-400/90 shadow-inner select-text">
+                  {error}
+                </div>
+              )}
               <div className="flex flex-col gap-1">
                 {(Object.values(AVAILABLE_MODELS) as ModelInfo[]).map((model) => {
                   const isActive = currentModel?.id === model.id || loadingModelId === model.id;
