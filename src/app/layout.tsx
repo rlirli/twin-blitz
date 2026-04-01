@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 
@@ -30,7 +32,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <NuqsAdapter>{children}</NuqsAdapter>
+        <Suspense>
+          <NuqsAdapter>{children}</NuqsAdapter>
+        </Suspense>
       </body>
     </html>
   );

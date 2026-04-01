@@ -1,5 +1,7 @@
 "use client";
 
+import { Suspense } from "react";
+
 import { CardPreview } from "@/components/card-preview";
 import { HowItWorks } from "@/components/how-it-works";
 import { PrintSection } from "@/components/print-section";
@@ -49,7 +51,13 @@ export default function Home() {
         </header>
 
         <section>
-          <SymbolGrid />
+          <Suspense
+            fallback={
+              <div className="bg-muted border-muted-foreground/10 mb-6 h-48 animate-pulse rounded-2xl border" />
+            }
+          >
+            <SymbolGrid />
+          </Suspense>
         </section>
 
         <section>
