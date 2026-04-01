@@ -68,6 +68,25 @@ export function applyCropTransform(
 }
 
 /**
+ * Applies a 2D transform to a canvas context that maps the Upright Cropped Workspace (B-Space)
+ * back to Raw Image Space (A-Space).
+ */
+export function applyUncropTransform(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  t: Transformation,
+) {
+  const cropW = t.width;
+  const cropH = t.height;
+
+  // Move to the intended center of the crop in A-space
+  ctx.translate(t.x + cropW / 2, t.y + cropH / 2);
+  // Rotate by the same angle (positive because we are moving B -> A)
+  ctx.rotate((t.rotation * Math.PI) / 180);
+  // Move back to top-left of the B-space content
+  ctx.translate(-cropW / 2, -cropH / 2);
+}
+
+/**
  * Creates an ImageBitmap of the current crop from a source image.
  * This encapsulates the A-Space to B-Space rendering logic used for AI input.
  */
