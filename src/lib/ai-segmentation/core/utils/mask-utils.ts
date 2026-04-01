@@ -132,3 +132,54 @@ export async function cropAndRescaleMask(
     alpha,
   };
 }
+
+interface BasicTransformation {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+}
+
+/**
+ * Specifically for AI masks: Takes a mask generated from a B-space crop (workspace resolution)
+ * and "un-crops" it back into a full-resolution A-space mask (original image resolution).
+ *
+ * This ensures all stored masks are in the same coordinate system.
+ */
+export async function uncropMask(
+  mask: Mask,
+  t: BasicTransformation,
+  origW: number,
+  origH: number,
+): Promise<Mask> {
+  // 1. Render mask to a B-space bitmap
+  const bCanvas = new OffscreenCanvas(mask.width, mask.height);
+  const bCtx = bCanvas.getContext("2d")!;
+  bCtx.putImageData(maskToImageData(mask), 0, 0);
+  const bBitmap = bCanvas.transferToImageBitmap();
+
+  // 2. Project onto A-space canvas
+  const aCanvas = new OffscreenCanvas(origW, origH);
+  const aCtx = aCanvas.getContext("2d")!;
+
+  // Pivot math (Reverse of Crop UI logic):
+  // We want to draw the B-space crop such that its origin matches where it should be in A-space.
+  aCtx.save();
+  // Move to the intended center of the crop in A-space
+  aCtx.translate(t.x + t.width / 2, t.y + t.height / 2);
+  // Rotate by the same angle (positive because we are moving B -> A)
+  aCtx.rotate((t.rotation * Math.PI) / 180);
+  // Move back to top-left of the B-space content
+  aCtx.translate(-t.width / 2, -t.height / 2);
+  aCtx.drawImage(bBitmap, 0, 0);
+  aCtx.restore();
+
+  const outImageData = aCtx.getImageData(0, 0, origW, origH).data;
+  const alpha = new Uint8Array(origW * origH);
+  for (let i = 0; i < alpha.length; i++) {
+    alpha[i] = outImageData[i * 4 + 3];
+  }
+
+  return { width: origW, height: origH, alpha };
+}

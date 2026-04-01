@@ -26,6 +26,7 @@ import {
   AISegmentationDebugWindow,
   hashImage,
   maskToPNG,
+  uncropMask,
   Mask,
 } from "@/lib/ai-segmentation";
 import { logDebugImage } from "@/lib/ai-segmentation/core/utils/debug-utils";
@@ -226,8 +227,6 @@ export const MaskTab: React.FC<MaskTabProps> = ({
     }
 
     setIsAISegmenting(true);
-    // State storage for relative info can stay if needed for debug view,
-    // but the engine now wants absolute pixels.
     setLastRelClick({ x: pos.x / cropW, y: pos.y / cropH });
     try {
       const mask = await decodePoints(aiEmbeddingKey, [
@@ -235,22 +234,27 @@ export const MaskTab: React.FC<MaskTabProps> = ({
       ]);
       setLastAIOutput(mask);
 
-      // 2. Convert mask to PNG for storage
-      const dataUrl = await maskToPNG(mask);
+      if (!img) throw new Error("Image not loaded");
 
-      // 3. Create new MaskPath (stored in B-space coordinates)
-      // Note: We store the absolute pos for the UI rendering, but the model got relative
+      // 1. PROJECT B-space (crop) mask back to A-space (original image)
+      // This is crucial: the AI ran on the CROP, but we store in the ORIGINAL IMAGE resolution.
+      const aSpaceMask = await uncropMask(mask, transformation, img.width, img.height);
+
+      // 2. Convert mask to PNG for storage
+      const dataUrl = await maskToPNG(aSpaceMask);
+
+      // 3. Create new MaskPath (stored with A-space data)
       const newPath: MaskPath = {
         tool: "ai",
         mode,
-        points: [pos.x, pos.y],
+        points: [pos.x, pos.y], // B-space points, transformed to A-space below
         maskDataUrl: dataUrl,
       };
 
       const newLocalMask = mode === "replace" ? [newPath] : [...localMaskData, newPath];
       setLocalMaskData(newLocalMask);
 
-      // Sync back to parent
+      // Sync back to parent (this will convert all points to A-space for storage)
       const backTransformed = transformMaskData(newLocalMask, transformation, "B2A");
       onUpdateMask(backTransformed);
     } catch (err) {
@@ -678,19 +682,20 @@ function MaskShape({
   return null;
 }
 
-function AIMaskShape({ path, commonProps }: any) {
+function AIMaskShape({ path, commonProps, transformation }: any) {
   const [maskImg] = useImage(path.maskDataUrl);
   if (!maskImg) return null;
 
-  // Since the AI input was the cropped B-space bitmap,
-  // the output mask is already perfectly aligned with the crop workspace.
+  // Since AI masks are now A-space (Original size),
+  // we MUST apply the same pivot transformation as the original image to align it with our crop.
   return (
     <KonvaImage
       image={maskImg}
-      x={0}
-      y={0}
-      width={maskImg.width}
-      height={maskImg.height}
+      x={transformation.width / 2}
+      y={transformation.height / 2}
+      offsetX={transformation.x + transformation.width / 2}
+      offsetY={transformation.y + transformation.height / 2}
+      rotation={-transformation.rotation}
       {...commonProps}
       fill={undefined}
       stroke={undefined}
