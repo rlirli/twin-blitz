@@ -1,0 +1,113 @@
+/**
+ * Coordinate mapping and transformation utilities for the image editor.
+ * Handles conversions between Raw Image Space (A-Space) and Upright Cropped Workspace (B-Space).
+ */
+
+export interface Transformation {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+}
+
+/**
+ * Transforms a point from Raw Image Space (A-Space) to the Upright Cropped Workspace (B-Space).
+ */
+export function transformPointA2B(px: number, py: number, t: Transformation): [number, number] {
+  const rad = (-t.rotation * Math.PI) / 180;
+  const cx = t.x + t.width / 2;
+  const cy = t.y + t.height / 2;
+
+  // 1. Center relative to crop center
+  const dx = px - cx;
+  const dy = py - cy;
+
+  // 2. Rotate
+  const rx = dx * Math.cos(rad) - dy * Math.sin(rad);
+  const ry = dx * Math.sin(rad) + dy * Math.cos(rad);
+
+  // 3. Move to workspace space (0,0 is top-left)
+  return [rx + t.width / 2, ry + t.height / 2];
+}
+
+/**
+ * Transforms a point from Upright Cropped Workspace (B-Space) to Raw Image Space (A-Space).
+ */
+export function transformPointB2A(px: number, py: number, t: Transformation): [number, number] {
+  const rad = (t.rotation * Math.PI) / 180;
+  const cx = t.x + t.width / 2;
+  const cy = t.y + t.height / 2;
+
+  // 1. Center relative to workspace center
+  const dx = px - t.width / 2;
+  const dy = py - t.height / 2;
+
+  // 2. Rotate back
+  const rx = dx * Math.cos(rad) - dy * Math.sin(rad);
+  const ry = dx * Math.sin(rad) + dy * Math.cos(rad);
+
+  // 3. Move back to image space
+  return [rx + cx, ry + cy];
+}
+
+/**
+ * Applies a 2D transform to a canvas context that maps Raw Image Space (A-Space)
+ * to the Upright Cropped Workspace (B-Space).
+ */
+export function applyCropTransform(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  t: Transformation,
+) {
+  const cropW = t.width;
+  const cropH = t.height;
+
+  ctx.translate(cropW / 2, cropH / 2);
+  ctx.rotate((-t.rotation * Math.PI) / 180);
+  ctx.translate(-(t.x + cropW / 2), -(t.y + cropH / 2));
+}
+
+/**
+ * Applies a 2D transform to a canvas context that maps the Upright Cropped Workspace (B-Space)
+ * back to Raw Image Space (A-Space).
+ */
+export function applyUncropTransform(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  t: Transformation,
+) {
+  const cropW = t.width;
+  const cropH = t.height;
+
+  // Move to the intended center of the crop in A-space
+  ctx.translate(t.x + cropW / 2, t.y + cropH / 2);
+  // Rotate by the same angle (positive because we are moving B -> A)
+  ctx.rotate((t.rotation * Math.PI) / 180);
+  // Move back to top-left of the B-space content
+  ctx.translate(-cropW / 2, -cropH / 2);
+}
+
+/**
+ * Creates an ImageBitmap of the current crop from a source image.
+ * This encapsulates the A-Space to B-Space rendering logic used for AI input.
+ */
+export async function createCropBitmap(
+  img: HTMLImageElement | SVGImageElement | HTMLVideoElement | HTMLCanvasElement | ImageBitmap,
+  transformation: Transformation,
+): Promise<ImageBitmap> {
+  const cropW = transformation.width || (img as any).width || 0;
+  const cropH = transformation.height || (img as any).height || 0;
+
+  if (cropW === 0 || cropH === 0) {
+    throw new Error("Invalid crop dimensions");
+  }
+
+  const canvas = new OffscreenCanvas(cropW, cropH);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not get 2d context for OffscreenCanvas");
+
+  // Replicate the B-space upright crop
+  applyCropTransform(ctx, transformation);
+  ctx.drawImage(img, 0, 0);
+
+  return canvas.transferToImageBitmap();
+}

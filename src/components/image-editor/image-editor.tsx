@@ -7,7 +7,8 @@ import { X, Check, Crop as CropIcon, Scissors } from "lucide-react";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 
 import { cn } from "@/lib/utils/cn";
-import { Transformation, MaskPath, generateSticker } from "@/lib/utils/image-processing";
+import { Transformation } from "@/lib/utils/coordinate-math";
+import { MaskPath, generateSticker } from "@/lib/utils/image-processing";
 import { useSymbolStore } from "@/store/use-symbol-store";
 
 const CropTab = dynamic(() => import("./crop-tab").then((mod) => mod.CropTab), {

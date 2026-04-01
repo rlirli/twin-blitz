@@ -48,8 +48,9 @@ Visit [http://localhost:3000](http://localhost:3000) to personalize your deck, t
 ## 🎯 Roadmap
 
 - [x] feat: Export as .zip of image files
-- [x] fix: "Load defaults" should not replace already filled slots
 - [x] feat: Other deck sizes (p=3, p=5, etc.)
+- [x] feat: AI sticker segmentation
+- [ ] feat: Bulk encoding (or even bulk decoding)
 - [ ] feat: Additional default symbol sets
 - [ ] feat: Alternative print modes (4 cards per A4 page, etc.)
 - [ ] feat: Persistent database storage (+ Auth first)

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 
 import {
   Square,
@@ -14,13 +14,22 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize,
+  Sparkles,
 } from "lucide-react";
 import { Stage, Layer, Image as KonvaImage, Rect, Group, Line, Ellipse } from "react-konva";
 import useImage from "use-image";
 
 import { useMultiTouch } from "@/components/image-editor/use-multi-touch";
+import {
+  useAISegmentation,
+  ModelSelector,
+  AISegmentationDebugWindow,
+  maskToPNG,
+  uncropMask,
+} from "@/lib/ai-segmentation";
 import { cn } from "@/lib/utils/cn";
-import { Transformation, MaskPath, transformMaskData } from "@/lib/utils/image-processing";
+import { Transformation, createCropBitmap } from "@/lib/utils/coordinate-math";
+import { MaskPath, transformMaskData } from "@/lib/utils/image-processing";
 
 interface MaskTabProps {
   sourceUrl: string;
@@ -38,13 +47,18 @@ export const MaskTab: React.FC<MaskTabProps> = ({
   const [img] = useImage(sourceUrl);
   const stageRef = useRef<any>(null);
   const hasInitializedRef = useRef(false);
-  const [tool, setTool] = useState<MaskPath["tool"]>("lasso");
+  const [tool, setTool] = useState<MaskPath["tool"]>("ai");
   const [mode, setMode] = useState<MaskPath["mode"]>("add");
   const [brushSize, setBrushSize] = useState(20);
   const [zoom, setZoom] = useState(1);
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPath, setCurrentPath] = useState<number[] | null>(null);
+
+  // AI Session Management
+  const [aiInputBitmap, setAiInputBitmap] = useState<ImageBitmap | null>(null);
+  const ai = useAISegmentation({ image: aiInputBitmap });
+  const [showDebug, setShowDebug] = useState(true);
 
   // Local state for workspace-relative masks (B-space)
   // This allows us to work UPRIGHT and AXIS-ALIGNED easily.
@@ -91,6 +105,26 @@ export const MaskTab: React.FC<MaskTabProps> = ({
     setStagePos({ x: screenW / 2, y: screenH / 2 });
   }, [img, transformation.width, transformation.height]);
 
+  // Proactive Bitmap Creation for AI
+  useEffect(() => {
+    if (!img) return;
+    let isCancelled = false;
+
+    const updateBitmap = async () => {
+      try {
+        const bitmap = await createCropBitmap(img, transformation);
+        if (!isCancelled) setAiInputBitmap(bitmap);
+      } catch (err) {
+        console.error("Failed to create AI input bitmap:", err);
+      }
+    };
+
+    updateBitmap();
+    return () => {
+      isCancelled = true;
+    };
+  }, [img, transformation]);
+
   const MASK_OVERLAY_COLOR = "rgba(0, 0, 0, 0.8)";
   const cropW = transformation.width || (img?.width ?? 0);
   const cropH = transformation.height || (img?.height ?? 0);
@@ -106,18 +140,25 @@ export const MaskTab: React.FC<MaskTabProps> = ({
    * from the additive silhouette WITHIN the private buffer, which is then applied
    * as a single holistic eraser to the shroud.
    */
-  useEffect(() => {
-    if (cutterRef.current && img && localMaskData.length > 0) {
-      cutterRef.current.cache({
-        x: -20,
-        y: -20,
-        width: cropW + 40,
-        height: cropH + 40,
-      });
-    } else if (cutterRef.current) {
+  // Cache management for the cutter group
+  const recalculateCache = useCallback(() => {
+    if (cutterRef.current) {
       cutterRef.current.clearCache();
+      if (img && localMaskData.length > 0) {
+        cutterRef.current.cache({
+          x: -20,
+          y: -20,
+          width: cropW + 40,
+          height: cropH + 40,
+        });
+      }
+      cutterRef.current.getLayer()?.batchDraw();
     }
-  }, [localMaskData, img, cropW, cropH]);
+  }, [img, localMaskData.length, cropW, cropH]);
+
+  useEffect(() => {
+    recalculateCache();
+  }, [localMaskData, img, recalculateCache]);
 
   // Interaction handlers (Now in B-space!)
   const handleMouseDown = (e: any) => {
@@ -125,9 +166,63 @@ export const MaskTab: React.FC<MaskTabProps> = ({
     if (e.evt?.touches?.length > 1) return;
 
     if (!groupRef.current) return;
+
+    // AI TOOL HANDLING
+    if (tool === "ai") {
+      if (!ai.currentModel) {
+        alert("Please select and download an AI model first!");
+        return;
+      }
+      handleAIClick();
+      return;
+    }
+
     setIsDrawing(true);
     const pos = groupRef.current.getRelativePointerPosition();
     setCurrentPath([pos.x, pos.y]);
+  };
+
+  const handleAIClick = async () => {
+    if (!groupRef.current) return;
+
+    // Use B-space position directly
+    const pos = groupRef.current.getRelativePointerPosition();
+    console.debug("[handleAIClick] pos", pos);
+
+    // Boundary check
+    if (pos.x < 0 || pos.x > cropW || pos.y < 0 || pos.y > cropH) {
+      console.debug("[handleAIClick] Click outside image bounds", pos);
+      return;
+    }
+
+    try {
+      const mask = await ai.decodePoints([{ x: pos.x, y: pos.y, positive: true }]);
+      if (!img) throw new Error("Image not loaded");
+
+      // 1. PROJECT B-space (crop) mask back to A-space (original image)
+      // This is crucial: the AI ran on the CROP, but we store in the ORIGINAL IMAGE resolution.
+      const aSpaceMask = await uncropMask(mask, transformation, img.width, img.height);
+
+      // 2. Convert mask to PNG for storage
+      const dataUrl = await maskToPNG(aSpaceMask);
+
+      // 3. Create new MaskPath (stored with A-space data)
+      const newPath: MaskPath = {
+        tool: "ai",
+        mode,
+        points: [pos.x, pos.y], // B-space points, transformed to A-space below
+        maskDataUrl: dataUrl,
+      };
+
+      const newLocalMask = mode === "replace" ? [newPath] : [...localMaskData, newPath];
+      setLocalMaskData(newLocalMask);
+
+      // Sync back to parent (this will convert all points to A-space for storage)
+      const backTransformed = transformMaskData(newLocalMask, transformation, "B2A");
+      onUpdateMask(backTransformed);
+    } catch (err) {
+      console.error("AI Segmentation failed:", err);
+    }
   };
 
   const handleMouseMove = (e: any) => {
@@ -219,8 +314,19 @@ export const MaskTab: React.FC<MaskTabProps> = ({
   return (
     <div className="relative flex h-full flex-col overflow-hidden">
       {/* 1. Top Context Bar (Floating) */}
-      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-        <div className="flex items-center rounded-2xl bg-slate-900/80 p-1.5 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl">
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-2 pl-4">
+        {tool === "ai" && (
+          <ModelSelector
+            currentModel={ai.currentModel}
+            loadingModelId={ai.loadingModelId}
+            onSelect={ai.loadModel}
+            isLoading={ai.isModelLoading}
+            downloadProgress={ai.downloadProgress}
+            error={ai.error}
+            className="h-12"
+          />
+        )}
+        <div className="flex h-12 items-center justify-center rounded-2xl bg-slate-900/80 py-1.5 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl">
           <ActionButton onClick={handleUndo} icon={<Undo2 size={18} />} />
           <div className="mx-1 h-4 w-px bg-slate-700" />
           <ActionButton
@@ -258,6 +364,16 @@ export const MaskTab: React.FC<MaskTabProps> = ({
             onClick={() => setTool("ellipse")}
             icon={<Circle size={20} />}
             label="Circle"
+          />
+          <div className="my-1 h-px bg-slate-800" />
+          <ToolButton
+            active={tool === "ai"}
+            onClick={() => {
+              setTool("ai");
+              setShowDebug(true);
+            }}
+            icon={<Sparkles size={20} className={cn(ai.isProcessing && "animate-pulse")} />}
+            label="AI Magic"
           />
         </div>
       </div>
@@ -397,7 +513,13 @@ export const MaskTab: React.FC<MaskTabProps> = ({
                 */}
                 <Group ref={cutterRef} globalCompositeOperation="destination-out">
                   {localMaskData.map((path, i) => (
-                    <MaskShape key={i} path={path} isPreview={false} />
+                    <MaskShape
+                      key={i}
+                      path={path}
+                      isPreview={false}
+                      transformation={transformation}
+                      onLoad={recalculateCache}
+                    />
                   ))}
                 </Group>
 
@@ -413,6 +535,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
                     compositeOverride={mode === "subtract" ? "source-over" : "destination-out"}
                     fillOverride={mode === "subtract" ? MASK_OVERLAY_COLOR : "white"}
                     strokeOverride={mode === "subtract" ? MASK_OVERLAY_COLOR : "white"}
+                    transformation={transformation}
                   />
                 )}
 
@@ -438,6 +561,10 @@ export const MaskTab: React.FC<MaskTabProps> = ({
           </Stage>
         )}
       </div>
+
+      {showDebug && tool === "ai" && (
+        <AISegmentationDebugWindow {...ai.debug} onClose={() => setShowDebug(false)} />
+      )}
     </div>
   );
 };
@@ -448,6 +575,8 @@ function MaskShape({
   fillOverride,
   strokeOverride,
   compositeOverride,
+  transformation,
+  onLoad,
   isGeometricOutlineOnly = false,
 }: any) {
   const isGeometricPreview = isPreview && (path.tool !== "brush" || isGeometricOutlineOnly);
@@ -504,7 +633,46 @@ function MaskShape({
     return <Ellipse x={x + rx} y={y + ry} radiusX={rx} radiusY={ry} {...commonProps} />;
   }
 
+  if (path.tool === "ai" && path.maskDataUrl) {
+    return (
+      <AIMaskShape
+        path={path}
+        commonProps={commonProps}
+        transformation={transformation}
+        onLoad={onLoad}
+      />
+    );
+  }
+
   return null;
+}
+
+function AIMaskShape({ path, commonProps, transformation, onLoad }: any) {
+  const [maskImg] = useImage(path.maskDataUrl);
+
+  useEffect(() => {
+    if (maskImg) {
+      onLoad?.();
+    }
+  }, [maskImg, onLoad]);
+
+  if (!maskImg) return null;
+
+  // Since AI masks are now A-space (Original size),
+  // we MUST apply the same pivot transformation as the original image to align it with our crop.
+  return (
+    <KonvaImage
+      image={maskImg}
+      x={transformation.width / 2}
+      y={transformation.height / 2}
+      offsetX={(transformation.x || 0) + (transformation.width || 0) / 2}
+      offsetY={(transformation.y || 0) + (transformation.height || 0) / 2}
+      rotation={-transformation.rotation}
+      {...commonProps}
+      fill={undefined}
+      stroke={undefined}
+    />
+  );
 }
 
 function ActionButton({ onClick, icon, color = "indigo", title }: any) {

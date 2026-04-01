@@ -7,7 +7,7 @@ import { Stage, Layer, Image as KonvaImage, Rect, Transformer, Group } from "rea
 import useImage from "use-image";
 
 import { useMultiTouch } from "@/components/image-editor/use-multi-touch";
-import { Transformation } from "@/lib/utils/image-processing";
+import { Transformation } from "@/lib/utils/coordinate-math";
 
 interface CropTabProps {
   sourceUrl: string;
