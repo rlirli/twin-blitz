@@ -91,7 +91,7 @@ export class MobileSAMModel implements SegmentationModel {
     if (!this.decoderSession) throw new Error("Decoder session not initialized");
 
     const entry = await get(embeddingKey);
-    if (!entry) throw new Error("Embeddings not found in cache");
+    if (!entry) throw new Error("Embeddings not found in cache for key: " + embeddingKey);
 
     const { embeddings: embeddingArray, originalWidth, originalHeight, letterbox: info } = entry;
     const targetWidth = this.metadata.targetWidth;

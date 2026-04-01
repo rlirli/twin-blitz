@@ -118,7 +118,7 @@ export class EfficientViTSAMModel implements SegmentationModel {
     if (!this.decoderSession) throw new Error("Decoder session not initialized");
 
     const entry = await get(embeddingKey);
-    if (!entry) throw new Error("Embeddings not found in cache");
+    if (!entry) throw new Error("Embeddings not found in cache for key: " + embeddingKey);
 
     const { embeddings: embeddingArray, originalWidth, originalHeight, letterbox: info } = entry;
     // 1. Map clicks to 1024x1024 space (Standard SAM decoder expectation)

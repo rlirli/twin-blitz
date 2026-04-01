@@ -139,6 +139,16 @@ class AISegmentationService {
   }
 
   /**
+   * Check if an embedding is already in IndexedDB for a given model+hash.
+   * This decoupled check is much faster than loadModel().
+   */
+  async isEmbeddingCached(modelId: ModelId, version: string, imageHash: string): Promise<boolean> {
+    const key = getEmbeddingKey(modelId, version, imageHash);
+    const existing = await get(key);
+    return !!existing;
+  }
+
+  /**
    * Loads a model into memory. Handles potential race conditions.
    */
   async loadModel(
@@ -320,14 +330,18 @@ class AISegmentationService {
 
   /**
    * Internal helper to make sure a model is loaded, optionally restoring the last active one.
+   * If a load is currently in progress, we await it to ensure we are on the NEXT model,
+   * not the previous one.
    */
   private async ensureModelLoaded() {
-    if (this.currentModel) return;
     if (this.loadingPromise) {
       await this.loadingPromise;
       return;
     }
 
+    if (this.currentModel) return;
+
+    // Restore last used model if nothing is loading
     if (typeof window === "undefined") return;
     const lastId = localStorage.getItem("last-ai-model-id") as ModelId;
     if (lastId && AVAILABLE_MODELS[lastId]) {
@@ -380,9 +394,16 @@ class AISegmentationService {
    * Decodes embeddings for a set of clicks.
    */
   async decodePoints(embeddingKey: string, points: Point[]): Promise<Mask> {
-    // Mask type is in utils
     await this.ensureModelLoaded();
     if (!this.currentModel) throw new Error("No AI model loaded (Select one first)");
+
+    // Safety check: key must belong to model to avoid ONNX feed errors during transitions
+    if (!embeddingKey.startsWith(this.currentModel.id)) {
+      throw new Error(
+        `Embedding key mismatch: ${embeddingKey} does not belong to ${this.currentModel.id}`,
+      );
+    }
+
     this.ensureWorkers();
 
     const response = await this.sendMessageToWorker<DecoderResponse>(this.decoderWorker!, {

@@ -2,7 +2,8 @@ import { create } from "zustand";
 import { persist, createJSONStorage, StateStorage } from "zustand/middleware";
 
 import { getDb, setDb, delDb, DB_KEYS } from "@/lib/db";
-import { Transformation, MaskPath } from "@/lib/utils/image-processing";
+import { Transformation } from "@/lib/utils/coordinate-math";
+import { MaskPath } from "@/lib/utils/image-processing";
 
 export interface SymbolData {
   id: number;

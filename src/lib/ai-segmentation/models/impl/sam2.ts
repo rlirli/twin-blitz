@@ -154,7 +154,7 @@ export class SAM2Model implements SegmentationModel {
     if (!this.decoderSession) throw new Error("Decoder session not initialized");
 
     const entry = await get(embeddingKey);
-    if (!entry) throw new Error(`Embeddings not found in cache for key: ${embeddingKey}`);
+    if (!entry) throw new Error("Embeddings not found in cache for key: " + embeddingKey);
 
     // Robust destructuring with failover
     const {

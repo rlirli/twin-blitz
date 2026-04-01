@@ -24,14 +24,12 @@ import {
   useAISegmentation,
   ModelSelector,
   AISegmentationDebugWindow,
-  hashImage,
   maskToPNG,
   uncropMask,
-  Mask,
 } from "@/lib/ai-segmentation";
-import { logDebugImage } from "@/lib/ai-segmentation/core/utils/debug-utils";
 import { cn } from "@/lib/utils/cn";
-import { Transformation, MaskPath, transformMaskData } from "@/lib/utils/image-processing";
+import { Transformation, createCropBitmap } from "@/lib/utils/coordinate-math";
+import { MaskPath, transformMaskData } from "@/lib/utils/image-processing";
 
 interface MaskTabProps {
   sourceUrl: string;
@@ -57,24 +55,10 @@ export const MaskTab: React.FC<MaskTabProps> = ({
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPath, setCurrentPath] = useState<number[] | null>(null);
 
-  // AI Segmentation State
-  const {
-    currentModel,
-    loadingModelId,
-    isModelLoading,
-    encodeImage,
-    decodePoints,
-    loadModel,
-    downloadProgress,
-    error,
-  } = useAISegmentation();
-  const [isAISegmenting, setIsAISegmenting] = useState(false);
+  // AI Session Management
+  const [aiInputBitmap, setAiInputBitmap] = useState<ImageBitmap | null>(null);
+  const ai = useAISegmentation({ image: aiInputBitmap });
   const [showDebug, setShowDebug] = useState(true);
-  const [lastAIInput, setLastAIInput] = useState<ImageBitmap | null>(null);
-  const [lastAIOutput, setLastAIOutput] = useState<Mask | null>(null);
-  const [aiEmbeddingKey, setAiEmbeddingKey] = useState<string | null>(null);
-  const [isAIEncoding, setIsAIEncoding] = useState(false);
-  const [lastRelClick, setLastRelClick] = useState<{ x: number; y: number } | null>(null);
 
   // Local state for workspace-relative masks (B-space)
   // This allows us to work UPRIGHT and AXIS-ALIGNED easily.
@@ -121,52 +105,25 @@ export const MaskTab: React.FC<MaskTabProps> = ({
     setStagePos({ x: screenW / 2, y: screenH / 2 });
   }, [img, transformation.width, transformation.height]);
 
-  // Proactive AI Encoding
+  // Proactive Bitmap Creation for AI
   useEffect(() => {
-    if (!img || !currentModel) return;
-
-    // Reset embedding state immediately on model switch
-    setAiEmbeddingKey(null);
-    setLastAIOutput(null);
-
+    if (!img) return;
     let isCancelled = false;
-    const triggerEncoding = async () => {
-      // 1. Create a bitmap of the current CROP for the AI
-      const cropW = transformation.width || img.width;
-      const cropH = transformation.height || img.height;
-      const canvas = new OffscreenCanvas(cropW, cropH);
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
 
-      // Replicate the B-space upright crop
-      ctx.translate(cropW / 2, cropH / 2);
-      ctx.rotate((-transformation.rotation * Math.PI) / 180);
-      ctx.translate(-(transformation.x + cropW / 2), -(transformation.y + cropH / 2));
-      ctx.drawImage(img, 0, 0);
-
-      const bitmap = canvas.transferToImageBitmap();
-      logDebugImage(bitmap, "from MaskTap");
-      if (isCancelled) return;
-
-      const hash = await hashImage(bitmap);
-      if (isCancelled) return;
-
-      setLastAIInput(bitmap);
-      setIsAIEncoding(true);
+    const updateBitmap = async () => {
       try {
-        const key = await encodeImage(bitmap, hash);
-        if (isCancelled) return;
-        setAiEmbeddingKey(key);
-      } finally {
-        if (!isCancelled) setIsAIEncoding(false);
+        const bitmap = await createCropBitmap(img, transformation);
+        if (!isCancelled) setAiInputBitmap(bitmap);
+      } catch (err) {
+        console.error("Failed to create AI input bitmap:", err);
       }
     };
 
-    triggerEncoding();
+    updateBitmap();
     return () => {
       isCancelled = true;
     };
-  }, [img, currentModel, encodeImage, transformation]);
+  }, [img, transformation]);
 
   const MASK_OVERLAY_COLOR = "rgba(0, 0, 0, 0.8)";
   const cropW = transformation.width || (img?.width ?? 0);
@@ -212,14 +169,9 @@ export const MaskTab: React.FC<MaskTabProps> = ({
 
     // AI TOOL HANDLING
     if (tool === "ai") {
-      if (!currentModel) {
+      if (!ai.currentModel) {
         alert("Please select and download an AI model first!");
         return;
-      }
-      if (!aiEmbeddingKey) {
-        setIsAISegmenting(true);
-        // If not ready, we wait a bit or show a spinner.
-        // Realistically, encoding should be fast if cached.
       }
       handleAIClick();
       return;
@@ -231,9 +183,9 @@ export const MaskTab: React.FC<MaskTabProps> = ({
   };
 
   const handleAIClick = async () => {
-    if (!groupRef.current || !aiEmbeddingKey) return;
+    if (!groupRef.current) return;
 
-    // Use B-space position directly (no transformPointB2A needed as input is now the crop)
+    // Use B-space position directly
     const pos = groupRef.current.getRelativePointerPosition();
     console.debug("[handleAIClick] pos", pos);
 
@@ -243,12 +195,8 @@ export const MaskTab: React.FC<MaskTabProps> = ({
       return;
     }
 
-    setIsAISegmenting(true);
-    setLastRelClick({ x: pos.x / cropW, y: pos.y / cropH });
     try {
-      const mask = await decodePoints(aiEmbeddingKey, [{ x: pos.x, y: pos.y, positive: true }]);
-      setLastAIOutput(mask);
-
+      const mask = await ai.decodePoints([{ x: pos.x, y: pos.y, positive: true }]);
       if (!img) throw new Error("Image not loaded");
 
       // 1. PROJECT B-space (crop) mask back to A-space (original image)
@@ -274,8 +222,6 @@ export const MaskTab: React.FC<MaskTabProps> = ({
       onUpdateMask(backTransformed);
     } catch (err) {
       console.error("AI Segmentation failed:", err);
-    } finally {
-      setIsAISegmenting(false);
     }
   };
 
@@ -371,12 +317,12 @@ export const MaskTab: React.FC<MaskTabProps> = ({
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2 pl-4">
         {tool === "ai" && (
           <ModelSelector
-            currentModel={currentModel}
-            loadingModelId={loadingModelId}
-            onSelect={loadModel}
-            isLoading={isModelLoading}
-            downloadProgress={downloadProgress}
-            error={error}
+            currentModel={ai.currentModel}
+            loadingModelId={ai.loadingModelId}
+            onSelect={ai.loadModel}
+            isLoading={ai.isModelLoading}
+            downloadProgress={ai.downloadProgress}
+            error={ai.error}
             className="h-12"
           />
         )}
@@ -426,7 +372,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
               setTool("ai");
               setShowDebug(true);
             }}
-            icon={<Sparkles size={20} className={cn(isAISegmenting && "animate-pulse")} />}
+            icon={<Sparkles size={20} className={cn(ai.isProcessing && "animate-pulse")} />}
             label="AI Magic"
           />
         </div>
@@ -617,16 +563,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
       </div>
 
       {showDebug && tool === "ai" && (
-        <AISegmentationDebugWindow
-          inputImage={lastAIInput}
-          outputMask={lastAIOutput}
-          isEncoding={isAIEncoding}
-          isDecoding={isAISegmenting}
-          hasEmbeddings={!!aiEmbeddingKey}
-          currentModelId={currentModel?.id || "None"}
-          lastRelClick={lastRelClick}
-          onClose={() => setShowDebug(false)}
-        />
+        <AISegmentationDebugWindow {...ai.debug} onClose={() => setShowDebug(false)} />
       )}
     </div>
   );

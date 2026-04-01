@@ -1,4 +1,4 @@
-import React from "react";
+import { useEffect, useState } from "react";
 
 import { X, Loader2 } from "lucide-react";
 
@@ -25,10 +25,10 @@ export const AISegmentationDebugWindow: React.FC<AISegmentationDebugWindowProps>
   lastRelClick,
   onClose,
 }) => {
-  const [inputUrl, setInputUrl] = React.useState<string | null>(null);
-  const [maskUrl, setMaskUrl] = React.useState<string | null>(null);
+  const [inputUrl, setInputUrl] = useState<string | null>(null);
+  const [maskUrl, setMaskUrl] = useState<string | null>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!inputImage) {
       setInputUrl(null);
       return;
@@ -74,7 +74,7 @@ export const AISegmentationDebugWindow: React.FC<AISegmentationDebugWindowProps>
     canvas.convertToBlob().then((blob) => setInputUrl(URL.createObjectURL(blob)));
   }, [inputImage, lastRelClick]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!outputMask) {
       setMaskUrl(null);
       return;
@@ -123,11 +123,11 @@ export const AISegmentationDebugWindow: React.FC<AISegmentationDebugWindowProps>
           <div className="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg bg-black/40 ring-1 ring-white/5">
             {maskUrl ? (
               <img src={maskUrl} className="h-full w-full object-contain" alt="AI Output Mask" />
-            ) : isDecoding ? (
+            ) : isDecoding || (outputMask && !maskUrl) ? (
               <div className="flex flex-col items-center gap-1.5 opacity-50 grayscale">
                 <Loader2 size={14} className="animate-spin text-indigo-400" />
-                <span className="text-[8px] font-bold tracking-tighter text-indigo-200">
-                  DECODING...
+                <span className="text-[8px] font-bold tracking-tighter text-indigo-200 uppercase">
+                  {isDecoding ? "DECODING..." : "PREVIEW..."}
                 </span>
               </div>
             ) : (

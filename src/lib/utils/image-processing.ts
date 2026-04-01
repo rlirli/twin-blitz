@@ -7,13 +7,7 @@ export const SOURCE_IMAGE_MAX_DIMENSION = 2000;
 /** Quality setting for compressed WebP images (0.0 to 1.0). */
 export const SYMBOL_STORAGE_QUALITY = 0.85;
 
-export interface Transformation {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  rotation: number;
-}
+import { Transformation, transformPointA2B, transformPointB2A } from "./coordinate-math";
 
 export interface MaskPath {
   tool: "brush" | "lasso" | "rectangle" | "ellipse" | "ai";
@@ -21,46 +15,6 @@ export interface MaskPath {
   mode: "add" | "subtract" | "replace";
   brushSize?: number;
   maskDataUrl?: string; // PNG data URL for AI masks
-}
-
-/**
- * Transforms a point from Raw Image Space (A) to the Upright Cropped Workspace (B).
- */
-export function transformPointA2B(px: number, py: number, t: Transformation): [number, number] {
-  const rad = (-t.rotation * Math.PI) / 180;
-  const cx = t.x + t.width / 2;
-  const cy = t.y + t.height / 2;
-
-  // 1. Center relative to crop center
-  const dx = px - cx;
-  const dy = py - cy;
-
-  // 2. Rotate
-  const rx = dx * Math.cos(rad) - dy * Math.sin(rad);
-  const ry = dx * Math.sin(rad) + dy * Math.cos(rad);
-
-  // 3. Move to workspace space (0,0 is top-left)
-  return [rx + t.width / 2, ry + t.height / 2];
-}
-
-/**
- * Transforms a point from Upright Cropped Workspace (B) to Raw Image Space (A).
- */
-export function transformPointB2A(px: number, py: number, t: Transformation): [number, number] {
-  const rad = (t.rotation * Math.PI) / 180;
-  const cx = t.x + t.width / 2;
-  const cy = t.y + t.height / 2;
-
-  // 1. Center relative to workspace center
-  const dx = px - t.width / 2;
-  const dy = py - t.height / 2;
-
-  // 2. Rotate back
-  const rx = dx * Math.cos(rad) - dy * Math.sin(rad);
-  const ry = dx * Math.sin(rad) + dy * Math.cos(rad);
-
-  // 3. Move back to image space
-  return [rx + cx, ry + cy];
 }
 
 /**
