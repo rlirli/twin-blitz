@@ -45,13 +45,23 @@ class AISegmentationService {
     }
   }
 
+  private async getCache(): Promise<Cache | null> {
+    if (typeof caches === "undefined") return null;
+    try {
+      return await caches.open("ai-models-v1");
+    } catch (e) {
+      console.warn("AI Model cache access failed:", e);
+      return null;
+    }
+  }
+
   private async fetchAndCacheModel(
     url: string,
     onProgress?: (loaded: number, total: number) => void,
     signal?: AbortSignal,
   ): Promise<ArrayBuffer> {
-    const cache = await caches.open("ai-models-v1");
-    const cachedResponse = await cache.match(url);
+    const cache = await this.getCache();
+    const cachedResponse = cache ? await cache.match(url) : null;
     if (cachedResponse) {
       return await cachedResponse.arrayBuffer();
     }
@@ -61,7 +71,13 @@ class AISegmentationService {
 
     if (!onProgress) {
       const buffer = await response.clone().arrayBuffer();
-      await cache.put(url, response);
+      if (cache) {
+        try {
+          await cache.put(url, response);
+        } catch (e) {
+          console.warn(`Failed to cache model component ${url}:`, e);
+        }
+      }
       return buffer;
     }
 
@@ -90,7 +106,13 @@ class AISegmentationService {
     }
 
     // Cache the buffer directly to avoid another round of reading
-    await cache.put(url, new Response(buffer));
+    if (cache) {
+      try {
+        await cache.put(url, new Response(buffer));
+      } catch (e) {
+        console.warn(`Failed to cache model component ${url}:`, e);
+      }
+    }
     return buffer.buffer;
   }
 
@@ -98,11 +120,18 @@ class AISegmentationService {
    * Check if a model is already in the browser cache.
    */
   async isModelCached(modelId: ModelId): Promise<boolean> {
+    const cache = await this.getCache();
+    if (!cache) return false;
+
     const model = AVAILABLE_MODELS[modelId];
-    const cache = await caches.open("ai-models-v1");
-    const encMatch = await cache.match(model.encoderUrl);
-    const decMatch = await cache.match(model.decoderUrl);
-    return !!(encMatch && decMatch);
+    try {
+      const encMatch = await cache.match(model.encoderUrl);
+      const decMatch = await cache.match(model.decoderUrl);
+      return !!(encMatch && decMatch);
+    } catch (e) {
+      console.warn("AI Model cache match failed:", e);
+      return false;
+    }
   }
 
   /**
