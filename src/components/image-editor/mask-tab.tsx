@@ -229,9 +229,7 @@ export const MaskTab: React.FC<MaskTabProps> = ({
     setIsAISegmenting(true);
     setLastRelClick({ x: pos.x / cropW, y: pos.y / cropH });
     try {
-      const mask = await decodePoints(aiEmbeddingKey, [
-        { x: pos.x, y: pos.y, positive: mode !== "subtract" },
-      ]);
+      const mask = await decodePoints(aiEmbeddingKey, [{ x: pos.x, y: pos.y, positive: true }]);
       setLastAIOutput(mask);
 
       if (!img) throw new Error("Image not loaded");
