@@ -176,6 +176,7 @@ export function useAISegmentation(options: { image: ImageBitmap | null } = { ima
       } finally {
         if (!isCancelled) {
           setIsAIEncoding(false);
+          console.debug("[useAISegmentation] Encoding finished for model:", currentModel.id);
           encodingPromiseRef.current = null;
         }
       }
