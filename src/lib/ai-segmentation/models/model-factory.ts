@@ -5,6 +5,7 @@
 import * as ort from "onnxruntime-web/webgpu";
 
 import { EfficientViTSAMModel } from "./impl/efficientvit-sam";
+import { MobileSAMModel } from "./impl/mobile-sam";
 import { SAM2Model } from "./impl/sam2";
 import { AVAILABLE_MODELS, ModelId } from "./model-constants";
 import { SegmentationModel } from "./segmentation-model";
@@ -54,6 +55,10 @@ export class ModelFactory {
 
     if (modelId.includes("SAM2")) {
       return new SAM2Model(config);
+    }
+
+    if (modelId === "MOBILE_SAM") {
+      return new MobileSAMModel(config);
     }
 
     // Default to EfficientViT-SAM variants

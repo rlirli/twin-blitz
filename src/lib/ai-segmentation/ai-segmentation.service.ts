@@ -4,6 +4,7 @@
  */
 
 import { get } from "idb-keyval";
+import JSZip from "jszip";
 
 import { logDebugImage, logDebugMask } from "./core/utils/debug-utils";
 import { getEmbeddingKey } from "./core/utils/embedding-utils";
@@ -125,8 +126,11 @@ class AISegmentationService {
 
     const model = AVAILABLE_MODELS[modelId];
     try {
-      const encMatch = await cache.match(model.encoderUrl);
-      const decMatch = await cache.match(model.decoderUrl);
+      const encKey = model.zipUrl ? `${modelId}/encoder` : model.encoderUrl!;
+      const decKey = model.zipUrl ? `${modelId}/decoder` : model.decoderUrl!;
+
+      const encMatch = await cache.match(encKey);
+      const decMatch = await cache.match(decKey);
       return !!(encMatch && decMatch);
     } catch (e) {
       console.warn("AI Model cache match failed:", e);
@@ -166,9 +170,8 @@ class AISegmentationService {
     this.loadingPromise = (async () => {
       const isCached = await this.isModelCached(modelId);
       if (!isCached) {
-        console.log(
-          `Starting AI model download: ${model.name}\n- Encoder URL: ${model.encoderUrl}\n- Decoder URL: ${model.decoderUrl}`,
-        );
+        const downloadSource = model.zipUrl ? `ZIP: ${model.zipUrl}` : `URL: ${model.encoderUrl}`;
+        console.log(`Starting AI model download: ${model.name}\n- Source: ${downloadSource}`);
       }
 
       try {
@@ -179,59 +182,111 @@ class AISegmentationService {
 
         const metadataTotal = model.sizeMB * 1024 * 1024;
 
-        const updateProgress = () => {
-          if (onProgress) {
-            const loaded = encoderLoadedBytes + decoderLoadedBytes;
-            const total = Math.max(metadataTotal, encoderTotalBytes + decoderTotalBytes);
-            const percent = Math.min(99, Math.round((loaded / total) * 100));
-            onProgress({ loaded, total: total || metadataTotal, percent });
+        let lastUpdate = 0;
+        const updateProgress = (l?: number) => {
+          if (!onProgress) return;
+          const now = Date.now();
+          if (now - lastUpdate < 50 && l !== undefined) return; // Throttle small updates
+          lastUpdate = now;
+
+          const loaded = encoderLoadedBytes + decoderLoadedBytes;
+          const total = Math.max(metadataTotal, encoderTotalBytes + decoderTotalBytes);
+          const percent = Math.min(99, Math.round((loaded / (total || metadataTotal)) * 100));
+          onProgress({ loaded, total: total || metadataTotal, percent });
+        };
+
+        // 1. Parallel loading logic
+        const getModelBuffers = async (): Promise<[ArrayBuffer, ArrayBuffer]> => {
+          if (model.zipUrl) {
+            const cache = await this.getCache();
+            const encKey = `${modelId}/encoder`;
+            const decKey = `${modelId}/decoder`;
+
+            if (isCached && cache) {
+              const [e, d] = await Promise.all([cache.match(encKey), cache.match(decKey)]);
+              if (e && d) return [await e.arrayBuffer(), await d.arrayBuffer()];
+            }
+
+            // Download and extract ZIP
+            const zipBuffer = await this.fetchAndCacheModel(
+              model.zipUrl,
+              (l, t) => {
+                encoderLoadedBytes = l;
+                encoderTotalBytes = t;
+                updateProgress(l);
+              },
+              signal,
+            );
+
+            // Signal extraction start to UI (99%)
+            updateProgress();
+
+            const zip = await JSZip.loadAsync(zipBuffer);
+
+            const encFile = zip.file(model.encoderPath!);
+            const decFile = zip.file(model.decoderPath!);
+            if (!encFile || !decFile) throw new Error("Model files not found in ZIP");
+
+            const [eBuf, dBuf] = await Promise.all([
+              encFile.async("arraybuffer"),
+              decFile.async("arraybuffer"),
+            ]);
+
+            // Cache extracted files
+            if (cache) {
+              await Promise.all([
+                cache.put(encKey, new Response(eBuf)),
+                cache.put(decKey, new Response(dBuf)),
+              ]);
+            }
+            return [eBuf, dBuf];
+          } else {
+            // Standard dual-url load
+            const [eBuf, dBuf] = await Promise.all([
+              this.fetchAndCacheModel(
+                model.encoderUrl!,
+                (l, t) => {
+                  encoderLoadedBytes = l;
+                  encoderTotalBytes = t;
+                  updateProgress();
+                },
+                signal,
+              ),
+              this.fetchAndCacheModel(
+                model.decoderUrl!,
+                (l, t) => {
+                  decoderLoadedBytes = l;
+                  decoderTotalBytes = t;
+                  updateProgress();
+                },
+                signal,
+              ),
+            ]);
+            return [eBuf, dBuf];
           }
         };
 
-        // 1. Start both downloads in parallel for speed
-        const encoderLoad = (async () => {
-          const encData = await this.fetchAndCacheModel(
-            model.encoderUrl,
-            (loaded, total) => {
-              encoderLoadedBytes = loaded;
-              encoderTotalBytes = total;
-              updateProgress();
-            },
-            signal,
-          );
-          // MOVE it to the worker immediately to free main thread RAM
-          return this.sendMessageToWorker(
-            this.encoderWorker!,
-            {
-              type: "LOAD_MODEL",
-              modelId,
-              modelData: encData,
-            },
-            [encData],
-          );
-        })();
+        const [encoderData, decoderData] = await getModelBuffers();
 
-        const decoderLoad = (async () => {
-          const decData = await this.fetchAndCacheModel(
-            model.decoderUrl,
-            (loaded, total) => {
-              decoderLoadedBytes = loaded;
-              decoderTotalBytes = total;
-              updateProgress();
-            },
-            signal,
-          );
-          // MOVE it to the worker immediately to free main thread RAM
-          return this.sendMessageToWorker(
-            this.decoderWorker!,
-            {
-              type: "LOAD_MODEL",
-              modelId,
-              modelData: decData,
-            },
-            [decData],
-          );
-        })();
+        const encoderLoad = this.sendMessageToWorker(
+          this.encoderWorker!,
+          {
+            type: "LOAD_MODEL",
+            modelId,
+            modelData: encoderData,
+          },
+          [encoderData],
+        );
+
+        const decoderLoad = this.sendMessageToWorker(
+          this.decoderWorker!,
+          {
+            type: "LOAD_MODEL",
+            modelId,
+            modelData: decoderData,
+          },
+          [decoderData],
+        );
 
         this.currentModel = model;
 
@@ -281,7 +336,11 @@ class AISegmentationService {
     const existing = await get(embeddingKey);
     if (existing) return embeddingKey;
 
-    logDebugImage(image, "AISegmentationService.encodeImage() input image", imageHash);
+    logDebugImage(
+      image,
+      `[${this.currentModel.name}]  AISegmentationService.encodeImage() input image`,
+      imageHash,
+    );
 
     // 2. Encode via worker
     await this.sendMessageToWorker<EncoderResponse>(this.encoderWorker!, {
@@ -311,7 +370,10 @@ class AISegmentationService {
     });
 
     if (response.type === "DECODED") {
-      logDebugMask(response.mask, "AISegmentationService.decodePoints() mask output");
+      logDebugMask(
+        response.mask,
+        `[${this.currentModel.name}]  AISegmentationService.decodePoints() mask output`,
+      );
       return response.mask;
     }
     throw new Error("Failed to decode mask");

@@ -18,10 +18,14 @@ export interface ModelMetadata {
   id: ModelId;
   name: string;
   version: string;
-  encoderUrl: string;
-  decoderUrl: string;
+  encoderUrl?: string;
+  decoderUrl?: string;
+  zipUrl?: string;
+  encoderPath?: string;
+  decoderPath?: string;
   sizeMB: number;
-  targetResolution: number; // e.g., 1024
+  targetWidth: number; // e.g. 1024 (Width or long side)
+  targetHeight: number; // e.g. 1024 or 682
 }
 
 export interface SegmentationModel {

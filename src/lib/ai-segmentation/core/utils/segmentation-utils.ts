@@ -12,37 +12,43 @@ export interface LetterboxInfo {
   padY: number;
   newW: number;
   newH: number;
-  targetRes: number;
+  targetWidth: number;
+  targetHeight: number;
 }
 
 /**
- * Calculates letterbox transformation parameters to fit source dimensions into a square target resolution.
+ * Calculates letterbox transformation parameters to fit source dimensions into a target resolution.
  */
-export function getLetterboxInfo(srcW: number, srcH: number, targetRes: number): LetterboxInfo {
-  const scale = Math.min(targetRes / srcW, targetRes / srcH);
+export function getLetterboxInfo(
+  srcW: number,
+  srcH: number,
+  targetWidth: number,
+  targetHeight: number = targetWidth,
+): LetterboxInfo {
+  const scale = Math.min(targetWidth / srcW, targetHeight / srcH);
   const newW = Math.round(srcW * scale);
   const newH = Math.round(srcH * scale);
-  const padX = (targetRes - newW) / 2;
-  const padY = (targetRes - newH) / 2;
+  const padX = (targetWidth - newW) / 2;
+  const padY = (targetHeight - newH) / 2;
 
-  return { scale, padX, padY, newW, newH, targetRes };
+  return { scale, padX, padY, newW, newH, targetWidth, targetHeight };
 }
 
 /**
  * Applies letterboxing to an ImageBitmap using OffscreenCanvas.
- * Returns the padded, square ImageBitmap and the transformation info.
+ * Returns the padded ImageBitmap and the transformation info.
  */
 export async function applyLetterbox(
   image: ImageBitmap,
-  targetRes: number,
+  targetWidth: number,
+  targetHeight: number = targetWidth,
 ): Promise<{ bitmap: ImageBitmap; info: LetterboxInfo }> {
-  const info = getLetterboxInfo(image.width, image.height, targetRes);
-  const canvas = new OffscreenCanvas(targetRes, targetRes);
+  const info = getLetterboxInfo(image.width, image.height, targetWidth, targetHeight);
+  const canvas = new OffscreenCanvas(targetWidth, targetHeight);
   const ctx = canvas.getContext("2d")!;
 
-  // Clear to black (standard for padding in SAM)
   ctx.fillStyle = "black";
-  ctx.fillRect(0, 0, targetRes, targetRes);
+  ctx.fillRect(0, 0, targetWidth, targetHeight);
   ctx.drawImage(image, info.padX, info.padY, info.newW, info.newH);
 
   return {
@@ -52,15 +58,15 @@ export async function applyLetterbox(
 }
 
 /**
- * Maps absolute pixel clicks to coordinates in the padded model input space (targetRes x targetRes),
- * and optionally applies an additional scaling factor (e.g., to 1024x1024 for standard SAM decoders).
+ * Maps absolute pixel clicks to coordinates in the padded model input space,
+ * and optionally applies an additional scaling factor.
  */
 export function mapPointToLetterbox(
   p: Point,
   info: LetterboxInfo,
   coordScale: number = 1,
 ): { x: number; y: number } {
-  // x_model = (x_pixel * scale + padding) * coordinate_normalization_factor
+  // Use targetW because SAM2 normalization is based on the long side (usually 1024)
   const x = (p.x * info.scale + info.padX) * coordScale;
   const y = (p.y * info.scale + info.padY) * coordScale;
   return { x, y };
@@ -75,8 +81,8 @@ export async function undoLetterbox(
   originalW: number,
   originalH: number,
 ): Promise<Mask> {
-  const outScaleX = mask.width / info.targetRes;
-  const outScaleY = mask.height / info.targetRes;
+  const outScaleX = mask.width / info.targetWidth;
+  const outScaleY = mask.height / info.targetHeight;
 
   const cropX = info.padX * outScaleX;
   const cropY = info.padY * outScaleY;

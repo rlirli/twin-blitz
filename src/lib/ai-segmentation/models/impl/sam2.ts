@@ -112,8 +112,9 @@ export class SAM2Model implements SegmentationModel {
     if (existing) return embeddingKey;
 
     // 1. Prepare image at target resolution (Letterbox)
-    const res = this.metadata.targetResolution;
-    const { bitmap, info } = await applyLetterbox(image, res);
+    const targetWidth = this.metadata.targetWidth;
+    const targetHeight = this.metadata.targetHeight;
+    const { bitmap, info } = await applyLetterbox(image, targetWidth, targetHeight);
 
     // 2. Convert to normalized tensor (SAM2 uses ImageNet)
     const tensorData = await imageBitmapToNormalizedTensor(bitmap, true);
@@ -125,7 +126,7 @@ export class SAM2Model implements SegmentationModel {
     const inputTensor = new ort.Tensor(
       "float32",
       tensorData,
-      is5D ? [1, 1, 3, res, res] : [1, 3, res, res],
+      is5D ? [1, 1, 3, targetHeight, targetWidth] : [1, 3, targetHeight, targetWidth],
     );
 
     // 3. Encoder Inference
@@ -170,7 +171,7 @@ export class SAM2Model implements SegmentationModel {
 
     // If 'outputs' key is missing, check if it was saved as 'embeddings' (EfficientViT fallback)
     const outputs = rawOutputs || (entry.embeddings ? { image_embeddings: entry.embeddings } : {});
-    const res = this.metadata.targetResolution;
+    const targetWidth = this.metadata.targetWidth;
 
     // 1. Helper for safe dimension metadata
     const getExpectedShape = (name: string) =>
@@ -180,8 +181,8 @@ export class SAM2Model implements SegmentationModel {
     const inputNames = this.decoderSession.inputNames;
     const outputNames = this.decoderSession.outputNames;
 
-    const needs1024Scale = res !== 1024;
-    const coordScale = needs1024Scale ? 1024 / res : 1;
+    const needs1024Scale = targetWidth !== 1024;
+    const coordScale = needs1024Scale ? 1024 / targetWidth : 1;
 
     const mapped = points.map((p) => mapPointToLetterbox(p, info, coordScale));
     const flatCoords = new Float32Array(mapped.flatMap((p) => [p.x, p.y]));
