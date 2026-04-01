@@ -94,13 +94,14 @@ export class SAM2Model implements SegmentationModel {
     const existing = await get(embeddingKey);
     if (existing) return embeddingKey;
 
-    // 1. Resolve target dimensions (Letterbox)
+    // 1. Prepare image at target resolution (Letterbox)
     const res = this.metadata.targetResolution;
     const { bitmap, info } = await applyLetterbox(image, res);
 
-    // 2. Prepare Tensor (SAM2 always uses ImageNet normalization)
+    // 2. Convert to normalized tensor (SAM2 uses ImageNet)
     const tensorData = await imageBitmapToNormalizedTensor(bitmap, true);
 
+    // Some SAM2 models have a frame/batch dimension [1, 1, 3, H, W]
     const dimsMeta = (this.encoderSession as any).inputsMeta?.[this.encoderSession.inputNames[0]]
       ?.dims;
     const is5D = dimsMeta?.length === 5;
@@ -115,7 +116,7 @@ export class SAM2Model implements SegmentationModel {
       [this.encoderSession.inputNames[0]]: inputTensor,
     });
 
-    // Store ALL outputs (SAM2 has multiple high-res feature scales)
+    // 4. Store ALL produced outputs (SAM2 has multiple high-res feature scales)
     const storage: any = {
       originalWidth: image.width,
       originalHeight: image.height,
@@ -135,20 +136,42 @@ export class SAM2Model implements SegmentationModel {
     if (!this.decoderSession) throw new Error("Decoder session not initialized");
 
     const entry = await get(embeddingKey);
-    if (!entry) throw new Error("Embeddings not found in cache");
+    if (!entry) throw new Error(`Embeddings not found in cache for key: ${embeddingKey}`);
 
-    const { outputs, originalWidth, originalHeight, letterbox: info } = entry;
+    // Robust destructuring with failover
+    const {
+      outputs: rawOutputs,
+      originalWidth,
+      originalHeight,
+      letterbox: info,
+    } = entry as {
+      outputs: Record<string, any>;
+      originalWidth: number;
+      originalHeight: number;
+      letterbox: any;
+    };
+
+    // If 'outputs' key is missing, check if it was saved as 'embeddings' (EfficientViT fallback)
+    const outputs = rawOutputs || (entry.embeddings ? { image_embeddings: entry.embeddings } : {});
     const res = this.metadata.targetResolution;
 
-    // 1. Map clicks to letterbox space
+    // 1. Helper for safe dimension metadata
     const getExpectedShape = (name: string) =>
       (this.decoderSession as any).inputsMeta?.[name]?.dims;
-    const coordsShape = getExpectedShape("point_coords") || [1, points.length, 2];
-    const is5D = coordsShape.length === 4 || coordsShape.length === 5;
 
-    const mapped = points.map((p) => mapPointToLetterbox(p, info));
+    // 2. Map clicks to letterbox space (Some models expect 1024x1024 absolute coords)
+    const inputNames = this.decoderSession.inputNames;
+    const outputNames = this.decoderSession.outputNames;
+
+    const needs1024Scale = res !== 1024;
+    const coordScale = needs1024Scale ? 1024 / res : 1;
+
+    const mapped = points.map((p) => mapPointToLetterbox(p, info, coordScale));
     const flatCoords = new Float32Array(mapped.flatMap((p) => [p.x, p.y]));
     const flatLabels = new Float32Array(points.map((p) => (p.positive ? 1 : 0)));
+
+    const coordsShape = getExpectedShape("point_coords") || [1, points.length, 2];
+    const is5D = coordsShape.length === 4 || coordsShape.length === 5;
 
     const inputs: any = {
       point_coords: new ort.Tensor(
@@ -163,9 +186,8 @@ export class SAM2Model implements SegmentationModel {
       ),
     };
 
-    // 2. Map Multi-scale Features with Aliases
-    const inputNames = this.decoderSession.inputNames;
-    const findOutput = (prefixes: string[]) => {
+    // 3. Helper to find features by prefix (Image models have varying output names)
+    const findInOutputs = (prefixes: string[]) => {
       for (const p of prefixes) {
         if (outputs[p]) return outputs[p];
         const match = Object.keys(outputs).find((k) => k.startsWith(p));
@@ -174,8 +196,9 @@ export class SAM2Model implements SegmentationModel {
       return null;
     };
 
-    // Primary Embedding
-    const encEmbed = findOutput(["image_embeddings", "image_embed", "image_features"]);
+    // 4. Map Features
+    // - Primary Embedding
+    const encEmbed = findInOutputs(["image_embeddings", "image_embed", "image_features"]);
     if (encEmbed) {
       const name = inputNames.find((n) => n.includes("embed") || n.includes("feat"));
       if (name) {
@@ -188,9 +211,9 @@ export class SAM2Model implements SegmentationModel {
       }
     }
 
-    // High Res Features
+    // - High Resolution features (crucial for SAM2 quality)
     if (inputNames.includes("high_res_feats_0")) {
-      const data = outputs.high_res_feats_0 || outputs.high_res_feats_0_0;
+      const data = findInOutputs(["high_res_feats_0"]);
       if (data)
         inputs.high_res_feats_0 = new ort.Tensor(
           "float32",
@@ -199,7 +222,7 @@ export class SAM2Model implements SegmentationModel {
         );
     }
     if (inputNames.includes("high_res_feats_1")) {
-      const data = outputs.high_res_feats_1 || outputs.high_res_feats_1_0;
+      const data = findInOutputs(["high_res_feats_1"]);
       if (data)
         inputs.high_res_feats_1 = new ort.Tensor(
           "float32",
@@ -208,7 +231,7 @@ export class SAM2Model implements SegmentationModel {
         );
     }
 
-    // Auxiliary inputs
+    // 5. Auxiliary inputs
     const maskInputName = inputNames.find((n) => n.includes("mask_input"));
     if (maskInputName) {
       const shape = getExpectedShape(maskInputName) || [1, 1, 256, 256];
@@ -219,31 +242,49 @@ export class SAM2Model implements SegmentationModel {
       );
     }
     const hasMaskInputName = inputNames.find((n) => n.includes("has_mask_input"));
-    if (hasMaskInputName)
+    if (hasMaskInputName) {
       inputs[hasMaskInputName] = new ort.Tensor("float32", new Float32Array([0]), [1]);
+    }
 
     const origSizeName = inputNames.find(
       (n) => n.includes("orig_im_size") || n.includes("orig_size"),
     );
-    if (origSizeName)
-      inputs[origSizeName] = new ort.Tensor("float32", new Float32Array([res, res]), [2]);
-
-    // 3. Decoder Inference
-    const results = await this.decoderSession.run(inputs);
-    const outputName = inputNames.includes("masks") ? "masks" : this.decoderSession.outputNames[0];
-    const maskTensor = results[outputName];
-    const maskData = maskTensor.data as Float32Array;
-
-    const [outH, outW] = [
-      maskTensor.dims[maskTensor.dims.length - 2],
-      maskTensor.dims[maskTensor.dims.length - 1],
-    ];
-    const alpha = new Uint8Array(outW * outH);
-    for (let i = 0; i < outW * outH; i++) {
-      alpha[i] = maskData[i] > 0 ? 255 : 0;
+    if (origSizeName) {
+      // Standard SAM usually expects [H, W] of the *target* resolution or original
+      inputs[origSizeName] = new ort.Tensor("float32", new Float32Array([1024, 1024]), [2]);
     }
 
-    // 4. Reverse Transformation
+    // 6. Inference
+    const results = await this.decoderSession.run(inputs);
+
+    // 7. Resolve Mask Output (Pick the best one if multiple are provided)
+    const maskName = outputNames.find((n) => n.includes("masks")) || outputNames[0];
+    const scoreName = outputNames.find((n) => n.includes("scores") || n.includes("iou"));
+
+    const maskTensor = results[maskName];
+    let maskData = maskTensor.data as Float32Array;
+    const dims = maskTensor.dims;
+
+    const [outH, outW] = [dims[dims.length - 2], dims[dims.length - 1]];
+    const numMasks = dims.length === 4 ? dims[1] : 1;
+
+    // Pick best index using scores if available
+    if (numMasks > 1 && scoreName && results[scoreName]) {
+      const scores = results[scoreName].data as Float32Array;
+      let bestIdx = 0;
+      for (let i = 1; i < numMasks; i++) {
+        if (scores[i] > scores[bestIdx]) bestIdx = i;
+      }
+      maskData = maskData.subarray(bestIdx * outH * outW, (bestIdx + 1) * outH * outW);
+    }
+
+    // 8. Final Thresholding and Alpha Map
+    const alpha = new Uint8Array(outW * outH);
+    for (let i = 0; i < outW * outH; i++) {
+      alpha[i] = maskData[i] > 0.0 ? 255 : 0;
+    }
+
+    // 9. Inverse Transformation
     return await undoLetterbox(
       { width: outW, height: outH, alpha },
       info,
