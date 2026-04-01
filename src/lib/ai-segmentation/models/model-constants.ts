@@ -4,6 +4,7 @@
 
 export type ModelId =
   | "MOBILE_SAM"
+  | "MOBILE_SAM_QUANT"
   | "EFFICIENTVIT_L0"
   | "EFFICIENTVIT_L1"
   | "EFFICIENTVIT_L2"
@@ -34,7 +35,19 @@ export const AVAILABLE_MODELS: Record<ModelId, ModelInfo> = {
       "https://huggingface.co/vietanhdev/segment-anything-onnx-models/resolve/main/mobile_sam_20230629.zip",
     encoderPath: "mobile_sam.encoder.onnx",
     decoderPath: "sam_vit_h_4b8939.decoder.onnx",
-    sizeMB: 40,
+    sizeMB: 36.7,
+    targetWidth: 1024,
+    targetHeight: 682,
+  },
+  MOBILE_SAM_QUANT: {
+    id: "MOBILE_SAM_QUANT",
+    name: "Segment Anything (MobileSAM Quant)",
+    version: "20230629",
+    zipUrl:
+      "https://huggingface.co/vietanhdev/segment-anything-onnx-models/resolve/main/mobile_sam_20230629_quant.zip",
+    encoderPath: "mobile_sam.encoder.quant.onnx",
+    decoderPath: "sam_vit_h_4b8939.decoder.quant.onnx",
+    sizeMB: 11.0,
     targetWidth: 1024,
     targetHeight: 682,
   },

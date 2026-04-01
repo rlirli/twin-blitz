@@ -57,7 +57,7 @@ export class ModelFactory {
       return new SAM2Model(config);
     }
 
-    if (modelId === "MOBILE_SAM") {
+    if (modelId === "MOBILE_SAM" || modelId === "MOBILE_SAM_QUANT") {
       return new MobileSAMModel(config);
     }
 
