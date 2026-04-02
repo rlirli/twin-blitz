@@ -29,6 +29,7 @@ export function useAISegmentation(options: { image: ImageBitmap | null } = { ima
   const [embeddingKey, setEmbeddingKey] = useState<string | null>(null);
   const [isAIEncoding, setIsAIEncoding] = useState(false);
   const [isAISegmenting, setIsAISegmenting] = useState(false);
+  const [isDecoderLoading, setIsDecoderLoading] = useState(false);
   const [lastAIOutput, setLastAIOutput] = useState<Mask | null>(null);
   const [lastRelClick, setLastRelClick] = useState<{ x: number; y: number } | null>(null);
 
@@ -78,6 +79,8 @@ export function useAISegmentation(options: { image: ImageBitmap | null } = { ima
       setLastAIOutput(null);
       setLastRelClick(null);
       setIdbHasEmbeddings(null);
+      setIsAISegmenting(false);
+      setIsDecoderLoading(false);
 
       // Proactively check IDB if image session already exists
       if (session) {
@@ -231,8 +234,17 @@ export function useAISegmentation(options: { image: ImageBitmap | null } = { ima
             throw new Error("AI session not ready: No image or embedding available.");
           }
         }
-        setIsAISegmenting(true);
+        // 3. SEPARATE DECODER LOADING STATE
+        if (!aiSegmentationService.decoderLoaded) {
+          setIsDecoderLoading(true);
+          try {
+            await aiSegmentationService.ensureDecoderLoaded();
+          } finally {
+            setIsDecoderLoading(false);
+          }
+        }
 
+        setIsAISegmenting(true);
         const mask = await aiSegmentationService.decodePoints(activeKey, points);
         setLastAIOutput(mask);
 
@@ -269,6 +281,7 @@ export function useAISegmentation(options: { image: ImageBitmap | null } = { ima
       outputMask: lastAIOutput,
       isEncoding: isAIEncoding,
       isDecoding: isAISegmenting,
+      isDecoderLoading,
       hasEmbeddings: idbHasEmbeddings ?? false,
       currentModelId: currentModel?.id || null,
       lastRelClick,

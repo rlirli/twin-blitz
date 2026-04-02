@@ -349,7 +349,7 @@ class AISegmentationService {
   /**
    * Ensures the decoder is inflated in its worker.
    */
-  private async ensureDecoderLoaded(data?: ArrayBuffer) {
+  public async ensureDecoderLoaded(data?: ArrayBuffer) {
     if (this.isDecoderLoaded) return;
     if (!this.currentModel) return;
 
@@ -382,6 +382,10 @@ class AISegmentationService {
 
   getCurrentModel(): ModelInfo | null {
     return this.currentModel;
+  }
+
+  get decoderLoaded(): boolean {
+    return this.isDecoderLoaded;
   }
 
   /**

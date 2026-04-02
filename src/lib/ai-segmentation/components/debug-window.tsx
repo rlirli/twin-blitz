@@ -9,6 +9,7 @@ interface AISegmentationDebugWindowProps {
   outputMask: Mask | null;
   isEncoding: boolean;
   isDecoding: boolean;
+  isDecoderLoading: boolean;
   hasEmbeddings: boolean;
   currentModelId: string | null;
   lastRelClick?: { x: number; y: number } | null;
@@ -20,6 +21,7 @@ export const AISegmentationDebugWindow: React.FC<AISegmentationDebugWindowProps>
   outputMask,
   isEncoding,
   isDecoding,
+  isDecoderLoading,
   hasEmbeddings,
   currentModelId,
   lastRelClick,
@@ -123,12 +125,20 @@ export const AISegmentationDebugWindow: React.FC<AISegmentationDebugWindowProps>
           <div className="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg bg-black/40 ring-1 ring-white/5">
             {maskUrl ? (
               <img src={maskUrl} className="h-full w-full object-contain" alt="AI Output Mask" />
-            ) : isDecoding || (outputMask && !maskUrl) ? (
+            ) : isDecoding || isDecoderLoading || (outputMask && !maskUrl) ? (
               <div className="flex flex-col items-center gap-1.5 opacity-50 grayscale">
                 <Loader2 size={14} className="animate-spin text-indigo-400" />
                 <span className="text-[8px] font-bold tracking-tighter text-indigo-200 uppercase">
-                  {isDecoding ? "DECODING..." : "PREVIEW..."}
+                  {isDecoderLoading
+                    ? "LOADING DECODER..."
+                    : isDecoding
+                      ? "DECODING..."
+                      : "PREVIEW..."}
                 </span>
+              </div>
+            ) : isEncoding || !hasEmbeddings ? (
+              <div className="flex flex-col items-center opacity-30">
+                <span className="text-[8px] font-medium text-slate-500">Awaiting Encoding...</span>
               </div>
             ) : (
               <div className="flex flex-col items-center opacity-30">
