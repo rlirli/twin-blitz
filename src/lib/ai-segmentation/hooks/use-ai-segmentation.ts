@@ -4,6 +4,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 
+import { isIOS } from "../../utils/device";
 import { aiSegmentationService, DownloadProgress } from "../ai-segmentation.service";
 import { hashImage, getEmbeddingKey } from "../core/utils/embedding-utils";
 import { Mask } from "../core/utils/mask-utils";
@@ -188,6 +189,16 @@ export function useAISegmentation(options: { image: ImageBitmap | null } = { ima
       isCancelled = true;
     };
   }, [session, currentModel]);
+
+  // 3. iOS CLEANUP EFFECT: Dispose decoder/encoder when leaving MaskTab
+  useEffect(() => {
+    return () => {
+      if (isIOS) {
+        console.debug("[useAISegmentation] iOS unmount: cleaning up AI sessions");
+        aiSegmentationService.disposeSessions();
+      }
+    };
+  }, []);
 
   /**
    * SMART decodePoints - Internally manages re-encoding/awaiting.

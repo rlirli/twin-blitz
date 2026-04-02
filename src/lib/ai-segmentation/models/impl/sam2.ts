@@ -23,85 +23,50 @@ export class SAM2Model implements SegmentationModel {
 
   constructor(public readonly metadata: ModelMetadata) {}
 
-  async load(encoderData: ArrayBuffer, decoderData: ArrayBuffer): Promise<void> {
+  private async loadSession(data: ArrayBuffer, name: string) {
+    if (data.byteLength === 0) return null;
+
     const commonOptions: ort.InferenceSession.SessionOptions = {
       executionProviders: getSafeExecutionProviders(),
       graphOptimizationLevel: getSafeOptimizationLevel(),
     };
 
-    /**
-     * Helper to load a session with robust fallback.
-     * WebGPU/WASM optimizations can sometimes fail on symbolic shapes.
-     */
-    const loadSession = async (data: ArrayBuffer, name: string) => {
-      if (data.byteLength === 0) return null;
-
+    try {
+      console.info(`[SAM2Model] Loading ${name} with providers:`, commonOptions.executionProviders);
+      return await ort.InferenceSession.create(data, commonOptions);
+    } catch (err: any) {
+      console.warn(`[SAM2Model] Tier 1 (WebGPU) failed for ${name}:`, err.message || err);
       try {
-        console.info(
-          `[SAM2Model] Loading ${name} with providers:`,
-          commonOptions.executionProviders,
+        console.info(`[SAM2Model] Tier 2: Attempting WASM (Optimized) for ${name}...`);
+        return await ort.InferenceSession.create(data, {
+          executionProviders: ["wasm"],
+          graphOptimizationLevel: "all",
+        });
+      } catch (wasmErr: any) {
+        console.warn(
+          `[SAM2Model] Tier 2 (WASM Optimized) failed for ${name}:`,
+          wasmErr.message || wasmErr,
         );
-        const session = await ort.InferenceSession.create(data, commonOptions);
-
-        // Access the hardware descriptor to confirm WebGPU is active
+        console.info(`[SAM2Model] Tier 3: Attempting WASM (Safe Mode) for ${name}...`);
         try {
-          const device = await (ort.env as any).webgpu.device;
-          if (device) {
-            console.info(`[SAM2Model] Hardware confirmed: WebGPU Device found`, device);
-          }
-        } catch (e) {
-          // Device might not be initialized yet if fallback was immediate
-          console.warn(`[SAM2Model] WebGPU Device not found`, e);
-        }
-
-        return session;
-      } catch (err: any) {
-        console.warn(`[SAM2Model] Tier 1 (WebGPU) failed for ${name}:`, err.message || err);
-
-        try {
-          console.info(`[SAM2Model] Tier 2: Attempting WASM (Optimized) for ${name}...`);
           return await ort.InferenceSession.create(data, {
             executionProviders: ["wasm"],
-            graphOptimizationLevel: "all",
+            graphOptimizationLevel: "disabled",
           });
-        } catch (wasmErr: any) {
-          console.warn(
-            `[SAM2Model] Tier 2 (WASM Optimized) failed for ${name}:`,
-            wasmErr.message || wasmErr,
-          );
-
-          console.info(`[SAM2Model] Tier 3: Attempting WASM (Safe Mode) for ${name}...`);
-          try {
-            return await ort.InferenceSession.create(data, {
-              executionProviders: ["wasm"],
-              graphOptimizationLevel: "disabled",
-            });
-          } catch (safeErr: any) {
-            console.error(`[SAM2Model] All tiers failed for ${name}:`, safeErr.message || safeErr);
-            throw safeErr;
-          }
+        } catch (safeErr: any) {
+          console.error(`[SAM2Model] All tiers failed for ${name}:`, safeErr.message || safeErr);
+          throw safeErr;
         }
       }
-    };
-
-    const tasks: Promise<void>[] = [];
-
-    if (encoderData.byteLength > 0) {
-      tasks.push(
-        loadSession(encoderData, "encoder").then((s) => {
-          this.encoderSession = s;
-        }),
-      );
     }
-    if (decoderData.byteLength > 0) {
-      tasks.push(
-        loadSession(decoderData, "decoder").then((s) => {
-          this.decoderSession = s;
-        }),
-      );
-    }
+  }
 
-    await Promise.all(tasks);
+  async loadEncoder(data: ArrayBuffer): Promise<void> {
+    this.encoderSession = await this.loadSession(data, "encoder");
+  }
+
+  async loadDecoder(data: ArrayBuffer): Promise<void> {
+    this.decoderSession = await this.loadSession(data, "decoder");
   }
 
   async encode(image: ImageBitmap, imageHash: string): Promise<string> {

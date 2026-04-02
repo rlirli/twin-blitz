@@ -20,10 +20,8 @@ self.onmessage = async (e: MessageEvent<EncoderMessage>) => {
       activeModel?.dispose();
       activeModel = ModelFactory.create(msg.modelId);
 
-      // The worker only needs one of the two binaries,
-      // but SegmentationModel.load() currently expects both encoder and decoder.
-      // We'll pass dummy array buffer for whichever part this worker doesn't use.
-      await activeModel.load(msg.modelData, new ArrayBuffer(0));
+      // The worker only needs the encoder binary
+      await activeModel.loadEncoder(msg.modelData);
       self.postMessage({ type: "LOADED" });
     } catch (err: any) {
       self.postMessage({ type: "ERROR", message: `Failed to load model: ${err.message}` });

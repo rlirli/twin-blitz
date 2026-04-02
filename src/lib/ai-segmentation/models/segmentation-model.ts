@@ -29,8 +29,11 @@ export interface ModelMetadata {
 }
 
 export interface SegmentationModel {
-  /** Load encoder + decoder from ArrayBuffers or Cache API */
-  load(encoderData: ArrayBuffer, decoderData: ArrayBuffer): Promise<void>;
+  /** Load encoder binary into ORT session */
+  loadEncoder(data: ArrayBuffer): Promise<void>;
+
+  /** Load decoder binary into ORT session */
+  loadDecoder(data: ArrayBuffer): Promise<void>;
 
   /** Encode a new image into embeddings (ImageBitmap → Uint8Array) */
   encode(image: ImageBitmap, imageHash: string): Promise<string>;
@@ -38,7 +41,7 @@ export interface SegmentationModel {
   /** Decode embeddings for given points */
   decode(embeddingKey: string, points: Point[]): Promise<Mask>;
 
-  /** Dispose encoder + decoder sessions and GPU memory */
+  /** Dispose sessions and free GPU/VRAM memory */
   dispose(): void;
 
   readonly metadata: ModelMetadata;

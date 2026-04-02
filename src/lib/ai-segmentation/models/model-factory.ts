@@ -14,9 +14,7 @@ import { SegmentationModel } from "./segmentation-model";
 const ORT_VERSION = "1.24.3"; // Matches package.json
 ort.env.wasm.wasmPaths = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
 
-// Strict iOS detection using only UserAgent strings for iPhone, iPad, and iPod.
-export const isIOS =
-  typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent);
+import { isIOS, isMobile } from "../../utils/device";
 
 // Global stability settings:
 // SharedArrayBuffer (threaded WASM) requires Cross-Origin Isolation.
@@ -41,10 +39,9 @@ export function getSafeExecutionProviders(): ort.InferenceSession.ExecutionProvi
 /**
  * Returns the recommended optimization level for the current device.
  */
-export function getSafeOptimizationLevel(): "all" | "extended" | "disabled" {
-  const isMobile =
-    typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  return isMobile ? "extended" : "all";
+
+export function getSafeOptimizationLevel(): "basic" | "extended" | "all" | "disabled" | "layout" {
+  return isMobile ? "disabled" : "all";
 }
 // ---------------------------------
 

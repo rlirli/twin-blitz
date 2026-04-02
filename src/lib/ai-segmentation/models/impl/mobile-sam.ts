@@ -22,29 +22,26 @@ export class MobileSAMModel implements SegmentationModel {
 
   constructor(public readonly metadata: ModelMetadata) {}
 
-  async load(encoderData: ArrayBuffer, decoderData: ArrayBuffer): Promise<void> {
+  private async loadSession(data: ArrayBuffer, name: string) {
+    if (data.byteLength === 0) return null;
     const commonOptions: ort.InferenceSession.SessionOptions = {
       executionProviders: getSafeExecutionProviders(),
       graphOptimizationLevel: getSafeOptimizationLevel(),
     };
+    try {
+      return await ort.InferenceSession.create(data, commonOptions);
+    } catch (err: any) {
+      console.warn(`[MobileSAM] WebGPU failed for ${name}, falling back to WASM...`, err);
+      return await ort.InferenceSession.create(data, { executionProviders: ["wasm"] });
+    }
+  }
 
-    const loadSession = async (data: ArrayBuffer, name: string) => {
-      if (data.byteLength === 0) return null;
-      try {
-        return await ort.InferenceSession.create(data, commonOptions);
-      } catch (err: any) {
-        console.warn(`[MobileSAM] WebGPU failed for ${name}, falling back to WASM...`, err);
-        return await ort.InferenceSession.create(data, { executionProviders: ["wasm"] });
-      }
-    };
+  async loadEncoder(data: ArrayBuffer): Promise<void> {
+    this.encoderSession = await this.loadSession(data, "encoder");
+  }
 
-    const [enc, dec] = await Promise.all([
-      loadSession(encoderData, "encoder"),
-      loadSession(decoderData, "decoder"),
-    ]);
-
-    this.encoderSession = enc;
-    this.decoderSession = dec;
+  async loadDecoder(data: ArrayBuffer): Promise<void> {
+    this.decoderSession = await this.loadSession(data, "decoder");
   }
 
   async encode(image: ImageBitmap, imageHash: string): Promise<string> {

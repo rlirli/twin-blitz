@@ -20,8 +20,8 @@ self.onmessage = async (e: MessageEvent<DecoderMessage>) => {
       activeModel?.dispose();
       activeModel = ModelFactory.create(msg.modelId);
 
-      // Load both pieces; worker will use decoder
-      await activeModel.load(new ArrayBuffer(0), msg.modelData);
+      // The worker only needs the decoder binary
+      await activeModel.loadDecoder(msg.modelData);
       self.postMessage({ type: "LOADED" });
     } catch (err: any) {
       self.postMessage({ type: "ERROR", message: `Failed to load model: ${err.message}` });

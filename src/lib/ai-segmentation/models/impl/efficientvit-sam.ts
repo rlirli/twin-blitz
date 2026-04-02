@@ -23,60 +23,28 @@ export class EfficientViTSAMModel implements SegmentationModel {
 
   constructor(public readonly metadata: ModelMetadata) {}
 
-  async load(encoderData: ArrayBuffer, decoderData: ArrayBuffer): Promise<void> {
-    const commonOptions: ort.InferenceSession.SessionOptions = {
+  private async loadSession(data: ArrayBuffer, name: string) {
+    if (data.byteLength === 0) return null;
+    const options: ort.InferenceSession.SessionOptions = {
       executionProviders: getSafeExecutionProviders(),
       graphOptimizationLevel: getSafeOptimizationLevel(),
-      logSeverityLevel: 0, // 3 = Error
+      logSeverityLevel: 0,
     };
-    /**
-     * Helper to load a session with robust fallback.
-     */
-    const loadSession = async (data: ArrayBuffer, name: string) => {
-      if (data.byteLength === 0) return null;
-      try {
-        console.info(
-          `[EfficientViT] Loading ${name} with providers:`,
-          commonOptions.executionProviders,
-        );
-        const session = await ort.InferenceSession.create(data, commonOptions);
-
-        // Access the hardware descriptor to confirm WebGPU is active
-        try {
-          const device = await (ort.env as any).webgpu.device;
-          if (device) {
-            console.info(`[EfficientViT] Hardware confirmed: WebGPU Device found`, device);
-          }
-        } catch (e) {
-          // Device might not be initialized yet if fallback was immediate
-          console.warn(`[EfficientViT] WebGPU Device not found`, e);
-        }
-
-        return session;
-      } catch (err: any) {
-        console.warn(`[EfficientViT] WebGPU failed for ${name}, falling back to WASM...`, err);
-        return await ort.InferenceSession.create(data, { executionProviders: ["wasm"] });
-      }
-    };
-
-    const tasks: Promise<void>[] = [];
-
-    if (encoderData.byteLength > 0) {
-      tasks.push(
-        loadSession(encoderData, "encoder").then((s) => {
-          this.encoderSession = s;
-        }),
-      );
+    try {
+      console.info(`[EfficientViT] Loading ${name} with providers:`, options.executionProviders);
+      return await ort.InferenceSession.create(data, options);
+    } catch (err: any) {
+      console.warn(`[EfficientViT] WebGPU failed for ${name}, falling back to WASM...`, err);
+      return await ort.InferenceSession.create(data, { executionProviders: ["wasm"] });
     }
-    if (decoderData.byteLength > 0) {
-      tasks.push(
-        loadSession(decoderData, "decoder").then((s) => {
-          this.decoderSession = s;
-        }),
-      );
-    }
+  }
 
-    await Promise.all(tasks);
+  async loadEncoder(data: ArrayBuffer): Promise<void> {
+    this.encoderSession = await this.loadSession(data, "encoder");
+  }
+
+  async loadDecoder(data: ArrayBuffer): Promise<void> {
+    this.decoderSession = await this.loadSession(data, "decoder");
   }
 
   async encode(image: ImageBitmap, imageHash: string): Promise<string> {

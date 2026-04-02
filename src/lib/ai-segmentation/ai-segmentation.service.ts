@@ -6,6 +6,7 @@
 import { get } from "idb-keyval";
 import JSZip from "jszip";
 
+import { isIOS } from "../utils/device";
 import { logDebugImage, logDebugMask } from "./core/utils/debug-utils";
 import { getEmbeddingKey } from "./core/utils/embedding-utils";
 import { Mask } from "./core/utils/mask-utils";
@@ -22,6 +23,8 @@ class AISegmentationService {
   private encoderWorker: Worker | null = null;
   private decoderWorker: Worker | null = null;
   private currentModel: ModelInfo | null = null;
+  private isEncoderLoaded = false;
+  private isDecoderLoaded = false;
   private loadingModelId: ModelId | null = null;
   private loadingPromise: Promise<void> | null = null;
   private abortController: AbortController | null = null;
@@ -149,20 +152,21 @@ class AISegmentationService {
   }
 
   /**
-   * Loads a model into memory. Handles potential race conditions.
+   * Loads a model's binaries into memory (Workers).
+   * On Desktop, loads both immediately.
+   * On iOS, this only handles the "Download" phase to fill Cache API;
+   * actual session inflation happens lazily in encode/decode.
    */
   async loadModel(
     modelId: ModelId,
     onProgress?: (progress: DownloadProgress) => void,
   ): Promise<void> {
-    if (this.currentModel?.id === modelId) return;
+    if (this.currentModel?.id === modelId && (this.isEncoderLoaded || this.isDecoderLoaded)) return;
 
-    // Return existing promise if already loading same model
     if (this.loadingModelId === modelId && this.loadingPromise) {
       return this.loadingPromise;
     }
 
-    // Cancel previous load if still running
     if (this.abortController) {
       this.abortController.abort();
       this.abortController = null;
@@ -196,7 +200,7 @@ class AISegmentationService {
         const updateProgress = (l?: number) => {
           if (!onProgress) return;
           const now = Date.now();
-          if (now - lastUpdate < 50 && l !== undefined) return; // Throttle small updates
+          if (now - lastUpdate < 50 && l !== undefined) return;
           lastUpdate = now;
 
           const loaded = encoderLoadedBytes + decoderLoadedBytes;
@@ -205,7 +209,6 @@ class AISegmentationService {
           onProgress({ loaded, total: total || metadataTotal, percent });
         };
 
-        // 1. Parallel loading logic
         const getModelBuffers = async (): Promise<[ArrayBuffer, ArrayBuffer]> => {
           if (model.zipUrl) {
             const cache = await this.getCache();
@@ -217,7 +220,6 @@ class AISegmentationService {
               if (e && d) return [await e.arrayBuffer(), await d.arrayBuffer()];
             }
 
-            // Download and extract ZIP
             const zipBuffer = await this.fetchAndCacheModel(
               model.zipUrl,
               (l, t) => {
@@ -228,11 +230,8 @@ class AISegmentationService {
               signal,
             );
 
-            // Signal extraction start to UI (99%)
             updateProgress();
-
             const zip = await JSZip.loadAsync(zipBuffer);
-
             const encFile = zip.file(model.encoderPath!);
             const decFile = zip.file(model.decoderPath!);
             if (!encFile || !decFile) throw new Error("Model files not found in ZIP");
@@ -242,7 +241,6 @@ class AISegmentationService {
               decFile.async("arraybuffer"),
             ]);
 
-            // Cache extracted files
             if (cache) {
               await Promise.all([
                 cache.put(encKey, new Response(eBuf)),
@@ -251,7 +249,6 @@ class AISegmentationService {
             }
             return [eBuf, dBuf];
           } else {
-            // Standard dual-url load
             const [eBuf, dBuf] = await Promise.all([
               this.fetchAndCacheModel(
                 model.encoderUrl!,
@@ -278,30 +275,21 @@ class AISegmentationService {
 
         const [encoderData, decoderData] = await getModelBuffers();
 
-        const encoderLoad = this.sendMessageToWorker(
-          this.encoderWorker!,
-          {
-            type: "LOAD_MODEL",
-            modelId,
-            modelData: encoderData,
-          },
-          [encoderData],
-        );
-
-        const decoderLoad = this.sendMessageToWorker(
-          this.decoderWorker!,
-          {
-            type: "LOAD_MODEL",
-            modelId,
-            modelData: decoderData,
-          },
-          [decoderData],
-        );
+        // If we switched models, dispose old sessions
+        if (this.currentModel && this.currentModel.id !== modelId) {
+          this.disposeSessions();
+        }
 
         this.currentModel = model;
 
-        // Wait for both components to be fully downloaded and ready in their workers
-        await Promise.all([encoderLoad, decoderLoad]);
+        // Desktop: Load both immediately
+        // iOS: Load nothing yet, wait for encode/decode calls
+        if (!isIOS) {
+          await Promise.all([
+            this.ensureEncoderLoaded(encoderData),
+            this.ensureDecoderLoaded(decoderData),
+          ]);
+        }
 
         if (!isCached) {
           console.log(`AI model download complete: ${model.name}`);
@@ -322,6 +310,74 @@ class AISegmentationService {
     })();
 
     return this.loadingPromise;
+  }
+
+  /**
+   * Ensures the encoder is inflated in its worker.
+   */
+  private async ensureEncoderLoaded(data?: ArrayBuffer) {
+    if (this.isEncoderLoaded) return;
+    if (!this.currentModel) return;
+
+    this.ensureWorkers();
+
+    let buffer = data;
+    if (!buffer) {
+      const cache = await this.getCache();
+      const encKey = this.currentModel.zipUrl
+        ? `${this.currentModel.id}/encoder`
+        : this.currentModel.encoderUrl!;
+      const match = cache ? await cache.match(encKey) : null;
+      if (!match) throw new Error("Encoder binary not found in cache");
+      buffer = await match.arrayBuffer();
+    }
+
+    await this.sendMessageToWorker(
+      this.encoderWorker!,
+      {
+        type: "LOAD_MODEL",
+        modelId: this.currentModel.id,
+        modelData: buffer,
+      },
+      [buffer],
+    );
+
+    this.isEncoderLoaded = true;
+    console.debug(`[AISegmentationService] Encoder loaded for ${this.currentModel.id}`);
+  }
+
+  /**
+   * Ensures the decoder is inflated in its worker.
+   */
+  private async ensureDecoderLoaded(data?: ArrayBuffer) {
+    if (this.isDecoderLoaded) return;
+    if (!this.currentModel) return;
+
+    this.ensureWorkers();
+
+    let buffer = data;
+    if (!buffer) {
+      const cache = await this.getCache();
+      const decKey = this.currentModel.zipUrl
+        ? `${this.currentModel.id}/decoder`
+        : this.currentModel.decoderUrl!;
+      const match = cache ? await cache.match(decKey) : null;
+      if (!match) throw new Error("Decoder binary not found in cache");
+      buffer = await match.arrayBuffer();
+    }
+
+    await this.sendMessageToWorker(
+      this.decoderWorker!,
+      {
+        type: "LOAD_MODEL",
+        modelId: this.currentModel.id,
+        modelData: buffer,
+      },
+      [buffer],
+    );
+
+    this.isDecoderLoaded = true;
+    console.debug(`[AISegmentationService] Decoder loaded for ${this.currentModel.id}`);
   }
 
   getCurrentModel(): ModelInfo | null {
@@ -360,7 +416,6 @@ class AISegmentationService {
   async encodeImage(image: ImageBitmap, imageHash: string): Promise<string> {
     await this.ensureModelLoaded();
     if (!this.currentModel) throw new Error("No AI model loaded (Select one first)");
-    this.ensureWorkers();
 
     const embeddingKey = getEmbeddingKey(
       this.currentModel.id,
@@ -372,13 +427,16 @@ class AISegmentationService {
     const existing = await get(embeddingKey);
     if (existing) return embeddingKey;
 
+    // 2. Ensure encoder is loaded (even on desktop)
+    await this.ensureEncoderLoaded();
+
     logDebugImage(
       image,
       `[${this.currentModel.name}]  AISegmentationService.encodeImage() input image`,
       imageHash,
     );
 
-    // 2. Encode via worker
+    // 3. Encode via worker
     await this.sendMessageToWorker<EncoderResponse>(this.encoderWorker!, {
       type: "ENCODE_IMAGE",
       image,
@@ -386,6 +444,11 @@ class AISegmentationService {
       modelId: this.currentModel.id,
       modelVersion: this.currentModel.version,
     });
+
+    // 4. iOS Cleanup: Dispose encoder immediately after use
+    if (isIOS) {
+      this.disposeEncoder();
+    }
 
     return embeddingKey;
   }
@@ -404,7 +467,8 @@ class AISegmentationService {
       );
     }
 
-    this.ensureWorkers();
+    // Ensure decoder is loaded
+    await this.ensureDecoderLoaded();
 
     const response = await this.sendMessageToWorker<DecoderResponse>(this.decoderWorker!, {
       type: "DECODE",
@@ -431,6 +495,36 @@ class AISegmentationService {
     this.encoderWorker = null;
     this.decoderWorker = null;
     this.currentModel = null;
+    this.isEncoderLoaded = false;
+    this.isDecoderLoaded = false;
+  }
+
+  /**
+   * Disposes only the encoder session.
+   */
+  disposeEncoder() {
+    if (!this.encoderWorker || !this.isEncoderLoaded) return;
+    this.encoderWorker.postMessage({ type: "DISPOSE" });
+    this.isEncoderLoaded = false;
+    console.debug("[AISegmentationService] Encoder session disposed");
+  }
+
+  /**
+   * Disposes only the decoder session.
+   */
+  disposeDecoder() {
+    if (!this.decoderWorker || !this.isDecoderLoaded) return;
+    this.decoderWorker.postMessage({ type: "DISPOSE" });
+    this.isDecoderLoaded = false;
+    console.debug("[AISegmentationService] Decoder session disposed");
+  }
+
+  /**
+   * Disposes sessions but keeps workers alive.
+   */
+  disposeSessions() {
+    this.disposeEncoder();
+    this.disposeDecoder();
   }
 
   private sendMessageToWorker<T>(worker: Worker, msg: any, transfer?: Transferable[]): Promise<T> {
