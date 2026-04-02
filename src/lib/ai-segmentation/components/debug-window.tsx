@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { X, Loader2 } from "lucide-react";
+import { motion, useDragControls } from "framer-motion";
+import { X, Loader2, GripHorizontal } from "lucide-react";
 
 import { Mask } from "../core/utils/mask-utils";
 
@@ -27,6 +28,7 @@ export const AISegmentationDebugWindow: React.FC<AISegmentationDebugWindowProps>
   lastRelClick,
   onClose,
 }) => {
+  const dragControls = useDragControls();
   const [inputUrl, setInputUrl] = useState<string | null>(null);
   const [maskUrl, setMaskUrl] = useState<string | null>(null);
 
@@ -95,9 +97,22 @@ export const AISegmentationDebugWindow: React.FC<AISegmentationDebugWindowProps>
   }, [outputMask]);
 
   return (
-    <div className="fixed right-6 bottom-24 z-50 flex w-72 flex-col gap-2 rounded-2xl bg-slate-950/90 p-3 shadow-2xl ring-1 ring-white/10 backdrop-blur-2xl sm:right-6 sm:bottom-6">
-      <div className="flex items-center justify-between border-b border-white/5 pb-2">
+    <motion.div
+      drag
+      dragControls={dragControls}
+      dragListener={false}
+      dragMomentum={false}
+      initial={false}
+      className="fixed right-6 bottom-24 z-50 flex w-72 flex-col gap-2 rounded-2xl bg-slate-950/90 p-3 shadow-2xl ring-1 ring-white/10 backdrop-blur-2xl sm:right-6 sm:bottom-6"
+      style={{ touchAction: "none" }}
+    >
+      <div
+        className="flex cursor-grab items-center justify-between border-b border-white/5 pb-2 active:cursor-grabbing"
+        onPointerDown={(e) => dragControls.start(e)}
+        style={{ touchAction: "none" }}
+      >
         <div className="flex items-center gap-2">
+          <GripHorizontal size={12} className="text-slate-600" />
           <span className="text-[10px] font-black tracking-widest text-slate-500 uppercase">
             AI Segmentation Debug
           </span>
@@ -105,7 +120,11 @@ export const AISegmentationDebugWindow: React.FC<AISegmentationDebugWindowProps>
             <Loader2 size={10} className="animate-spin text-indigo-400" />
           )}
         </div>
-        <button onClick={onClose} className="rounded-md p-1 hover:bg-white/5">
+        <button
+          onClick={onClose}
+          className="rounded-md p-1 hover:bg-white/5"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
           <X size={12} className="text-slate-400" />
         </button>
       </div>
@@ -173,6 +192,6 @@ export const AISegmentationDebugWindow: React.FC<AISegmentationDebugWindowProps>
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 };
