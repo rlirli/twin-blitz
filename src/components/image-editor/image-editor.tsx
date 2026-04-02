@@ -26,8 +26,14 @@ interface ImageEditorProps {
 }
 
 export const ImageEditor: React.FC<ImageEditorProps> = ({ slotId, onClose }) => {
-  const { symbols, updateTransformation, updateMaskData, setSymbolResult, getSourceImage } =
-    useSymbolStore();
+  const {
+    symbols,
+    updateTransformation,
+    updateMaskData,
+    setSymbolResult,
+    getSourceImage,
+    hasHydrated,
+  } = useSymbolStore();
   const symbol = symbols.find((s) => s.id === slotId);
 
   const [activeTab, setActiveTab] = useQueryState(
@@ -45,16 +51,27 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ slotId, onClose }) => 
 
   useEffect(() => {
     async function loadSource() {
+      // Don't even try if we haven't hydrated yet (SymbolGrid should already gate this)
+      if (!hasHydrated) return;
+
       const url = await getSourceImage(slotId);
+      if (typeof window !== "undefined") {
+        console.log(
+          `[ImageEditor] loading source for slot ${slotId}: ${url ? "Found" : "Not Found"}`,
+        );
+      }
+
       if (url) {
         setSourceUrl(url);
       } else if (symbol?.url) {
-        // Fallback for legacy icons
+        // Fallback for legacy icons or if sourceId is missing but preview exists
         setSourceUrl(symbol.url);
+      } else {
+        console.warn(`[ImageEditor] No source for slot ${slotId} even after hydration.`);
       }
     }
     loadSource();
-  }, [slotId, symbol, getSourceImage]);
+  }, [slotId, symbol, getSourceImage, hasHydrated]);
 
   const handleSave = async () => {
     if (!sourceUrl || !symbol) return;
