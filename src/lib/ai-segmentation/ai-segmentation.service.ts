@@ -28,6 +28,7 @@ class AISegmentationService {
   private loadingModelId: ModelId | null = null;
   private loadingPromise: Promise<void> | null = null;
   private abortController: AbortController | null = null;
+  private statusListeners: Set<() => void> = new Set();
 
   constructor() {
     // Lazy initialize as workers need to be created in the browser
@@ -343,6 +344,7 @@ class AISegmentationService {
     );
 
     this.isEncoderLoaded = true;
+    this.notify();
     console.debug(`[AISegmentationService] Encoder loaded for ${this.currentModel.id}`);
   }
 
@@ -377,11 +379,16 @@ class AISegmentationService {
     );
 
     this.isDecoderLoaded = true;
+    this.notify();
     console.debug(`[AISegmentationService] Decoder loaded for ${this.currentModel.id}`);
   }
 
   getCurrentModel(): ModelInfo | null {
     return this.currentModel;
+  }
+
+  get encoderLoaded(): boolean {
+    return this.isEncoderLoaded;
   }
 
   get decoderLoaded(): boolean {
@@ -510,6 +517,7 @@ class AISegmentationService {
     if (!this.encoderWorker || !this.isEncoderLoaded) return;
     this.encoderWorker.postMessage({ type: "DISPOSE" });
     this.isEncoderLoaded = false;
+    this.notify();
     console.debug("[AISegmentationService] Encoder session disposed");
   }
 
@@ -520,6 +528,7 @@ class AISegmentationService {
     if (!this.decoderWorker || !this.isDecoderLoaded) return;
     this.decoderWorker.postMessage({ type: "DISPOSE" });
     this.isDecoderLoaded = false;
+    this.notify();
     console.debug("[AISegmentationService] Decoder session disposed");
   }
 
@@ -529,6 +538,17 @@ class AISegmentationService {
   disposeSessions() {
     this.disposeEncoder();
     this.disposeDecoder();
+  }
+
+  private notify() {
+    this.statusListeners.forEach((l) => l());
+  }
+
+  subscribe(callback: () => void) {
+    this.statusListeners.add(callback);
+    return () => {
+      this.statusListeners.delete(callback);
+    };
   }
 
   private sendMessageToWorker<T>(worker: Worker, msg: any, transfer?: Transferable[]): Promise<T> {

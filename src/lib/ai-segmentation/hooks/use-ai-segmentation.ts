@@ -30,6 +30,8 @@ export function useAISegmentation(options: { image: ImageBitmap | null } = { ima
   const [isAIEncoding, setIsAIEncoding] = useState(false);
   const [isAISegmenting, setIsAISegmenting] = useState(false);
   const [isDecoderLoading, setIsDecoderLoading] = useState(false);
+  const [isEncoderInMem, setIsEncoderInMem] = useState(aiSegmentationService.encoderLoaded);
+  const [isDecoderInMem, setIsDecoderInMem] = useState(aiSegmentationService.decoderLoaded);
   const [lastAIOutput, setLastAIOutput] = useState<Mask | null>(null);
   const [lastRelClick, setLastRelClick] = useState<{ x: number; y: number } | null>(null);
 
@@ -63,6 +65,14 @@ export function useAISegmentation(options: { image: ImageBitmap | null } = { ima
       isCancelled = true;
     };
   }, [image]);
+
+  // Subscribe to service status changes (Loaded/Disposed)
+  useEffect(() => {
+    return aiSegmentationService.subscribe(() => {
+      setIsEncoderInMem(aiSegmentationService.encoderLoaded);
+      setIsDecoderInMem(aiSegmentationService.decoderLoaded);
+    });
+  }, []);
 
   const loadModel = useCallback(
     async (modelId: ModelId) => {
@@ -282,6 +292,8 @@ export function useAISegmentation(options: { image: ImageBitmap | null } = { ima
       isEncoding: isAIEncoding,
       isDecoding: isAISegmenting,
       isDecoderLoading,
+      isEncoderLoaded: isEncoderInMem,
+      isDecoderLoaded: isDecoderInMem,
       hasEmbeddings: idbHasEmbeddings ?? false,
       currentModelId: currentModel?.id || null,
       lastRelClick,

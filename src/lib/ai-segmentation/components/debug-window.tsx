@@ -11,6 +11,8 @@ interface AISegmentationDebugWindowProps {
   isEncoding: boolean;
   isDecoding: boolean;
   isDecoderLoading: boolean;
+  isEncoderLoaded: boolean;
+  isDecoderLoaded: boolean;
   hasEmbeddings: boolean;
   currentModelId: string | null;
   lastRelClick?: { x: number; y: number } | null;
@@ -23,6 +25,8 @@ export const AISegmentationDebugWindow: React.FC<AISegmentationDebugWindowProps>
   isEncoding,
   isDecoding,
   isDecoderLoading,
+  isEncoderLoaded,
+  isDecoderLoaded,
   hasEmbeddings,
   currentModelId,
   lastRelClick,
@@ -114,8 +118,38 @@ export const AISegmentationDebugWindow: React.FC<AISegmentationDebugWindowProps>
         <div className="flex items-center gap-2">
           <GripHorizontal size={12} className="text-slate-600" />
           <span className="text-[10px] font-black tracking-widest text-slate-500 uppercase">
-            AI Segmentation Debug
+            AI Debug
           </span>
+
+          <div className="flex items-center gap-2 border-l border-white/10 pl-2">
+            <div
+              className="flex items-center gap-1"
+              title={
+                isEncoderLoaded
+                  ? "Encoder model loaded into memory"
+                  : "Encoder model not loaded into memory"
+              }
+            >
+              <div
+                className={`h-1.5 w-1.5 rounded-full ${isEncoderLoaded ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" : "bg-slate-700"}`}
+              />
+              <span className="text-[9px] font-bold text-slate-500">En.</span>
+            </div>
+            <div
+              className="flex items-center gap-1"
+              title={
+                isDecoderLoaded
+                  ? "Decoder model loaded into memory"
+                  : "Decoder model not loaded into memory"
+              }
+            >
+              <div
+                className={`h-1.5 w-1.5 rounded-full ${isDecoderLoaded ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" : "bg-slate-700"}`}
+              />
+              <span className="text-[9px] font-bold text-slate-500">De.</span>
+            </div>
+          </div>
+
           {(isEncoding || isDecoding) && (
             <Loader2 size={10} className="animate-spin text-indigo-400" />
           )}
