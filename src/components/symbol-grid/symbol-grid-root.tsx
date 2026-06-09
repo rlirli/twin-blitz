@@ -11,6 +11,7 @@ import {
   compressImage,
   normalizeSourceImage,
 } from "@/lib/utils/image-processing";
+import { exportSymbolsToZip } from "@/lib/utils/image-zip-exporter";
 import { useDeckSettingsStore } from "@/store/use-settings-store";
 import { useSymbolStore } from "@/store/use-symbol-store";
 
@@ -47,6 +48,7 @@ export const SymbolGrid: React.FC = () => {
   const [bulkError, setBulkError] = useState<BulkErrorData | null>(null);
   const [isBulkUploading, setIsBulkUploading] = useState(false);
   const [isDefaultLoading, setIsDefaultLoading] = useState(false);
+  const [isBulkDownloading, setIsBulkDownloading] = useState(false);
   const [editingSlotId, setEditingSlotId] = useQueryState(
     "symbol",
     parseAsInteger.withOptions({ shallow: true, history: "push" }),
@@ -143,6 +145,26 @@ export const SymbolGrid: React.FC = () => {
       setIsDefaultLoading(false);
     }
   };
+  
+  const handleBulkDownload = async () => {
+    setIsBulkDownloading(true);
+    try {
+      const zipBlob = await exportSymbolsToZip(activeSymbols);
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "twin-blitz-symbols.zip";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to export symbols:", err);
+      alert("Failed to export symbols. Please try again.");
+    } finally {
+      setIsBulkDownloading(false);
+    }
+  };
 
   const emptyCount = activeSymbols.filter((s) => s.url === null).length;
 
@@ -163,6 +185,9 @@ export const SymbolGrid: React.FC = () => {
         emptyCount={emptyCount}
         bulkInputRef={bulkInputRef}
         className="px-8"
+        onBulkDownload={handleBulkDownload}
+        hasSymbols={activeSymbols.some((s) => s.url !== null)}
+        isBulkDownloading={isBulkDownloading}
       />
 
       <div className="relative">

@@ -1,6 +1,6 @@
 import React from "react";
 
-import { FolderOpen, Zap, X } from "lucide-react";
+import { FolderOpen, Zap, X, Download } from "lucide-react";
 
 import { cn } from "@/lib/utils/cn";
 
@@ -15,6 +15,9 @@ interface GridHeaderProps {
   emptyCount: number;
   bulkInputRef: React.RefObject<HTMLInputElement | null>;
   className?: string;
+  onBulkDownload: () => void;
+  hasSymbols: boolean;
+  isBulkDownloading: boolean;
 }
 
 export const GridHeader: React.FC<GridHeaderProps> = ({
@@ -26,8 +29,11 @@ export const GridHeader: React.FC<GridHeaderProps> = ({
   emptyCount,
   bulkInputRef,
   className,
+  onBulkDownload,
+  hasSymbols,
+  isBulkDownloading,
 }) => {
-  const isAnyLoading = isBulkUploading || isDefaultLoading;
+  const isAnyLoading = isBulkUploading || isDefaultLoading || isBulkDownloading;
 
   return (
     <div className={cn("mb-8 flex flex-col gap-8", className)}>
@@ -54,6 +60,24 @@ export const GridHeader: React.FC<GridHeaderProps> = ({
 
         {/* Right: Icon Actions (Filling) */}
         <div className="grid min-w-0 flex-1 grid-cols-2 flex-wrap gap-2 sm:flex sm:items-center sm:justify-start sm:gap-3 lg:justify-end">
+          {hasSymbols && (
+            <button
+              onClick={onBulkDownload}
+              disabled={isAnyLoading}
+              className={cn(
+                "col-span-2 flex w-full items-center justify-center gap-2 rounded-xl border-2 px-4 py-2.5 text-sm font-bold transition-all sm:w-auto sm:py-2 md:text-base lg:px-6",
+                isAnyLoading
+                  ? "bg-muted text-muted-foreground cursor-not-allowed border-transparent"
+                  : "bg-primary-soft border-primary/20 text-primary hover:bg-primary-soft/80 hover:scale-[1.02] active:scale-[0.98] cursor-pointer",
+              )}
+            >
+              <Download size={18} className="shrink-0" />
+              <span className="truncate">
+                {isBulkDownloading ? "Downloading…" : "Download Symbols"}
+              </span>
+            </button>
+          )}
+
           <label
             className={cn(
               "col-span-2 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all sm:w-auto sm:py-2 md:text-base lg:px-6",

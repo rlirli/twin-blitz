@@ -162,3 +162,49 @@ export async function exportCardsToZip(
 
   return await zip.generateAsync({ type: "blob" });
 }
+
+/**
+ * Generates a ZIP archive containing all uploaded/edited symbols.
+ */
+export async function exportSymbolsToZip(
+  symbols: SymbolData[],
+): Promise<Blob> {
+  const zip = new JSZip();
+  const folder = zip.folder("twin-blitz-symbols");
+
+  for (const symbol of symbols) {
+    if (!symbol.url) continue;
+
+    // Extract format and base64 data from the data URL
+    const match = symbol.url.match(/^data:(image\/[a-z0-9-+.]+);base64,(.+)$/i);
+    if (match) {
+      const mimeType = match[1];
+      const base64Data = match[2];
+      let extension = "webp"; // default to webp since our generator outputs webp
+      if (mimeType === "image/png") extension = "png";
+      else if (mimeType === "image/svg+xml") extension = "svg";
+      else if (mimeType === "image/jpeg") extension = "jpg";
+
+      const cleanName = symbol.name.replace(/\s+/g, "_");
+      folder?.file(`${cleanName}.${extension}`, base64Data, { base64: true });
+    } else {
+      // Fallback for absolute/relative URLs
+      try {
+        const response = await fetch(symbol.url);
+        const blob = await response.blob();
+        const mimeType = blob.type;
+        let extension = "webp";
+        if (mimeType === "image/png") extension = "png";
+        else if (mimeType === "image/svg+xml") extension = "svg";
+        else if (mimeType === "image/jpeg") extension = "jpg";
+
+        const cleanName = symbol.name.replace(/\s+/g, "_");
+        folder?.file(`${cleanName}.${extension}`, blob);
+      } catch (err) {
+        console.warn(`Failed to fetch and add symbol ${symbol.id} to zip`, err);
+      }
+    }
+  }
+
+  return await zip.generateAsync({ type: "blob" });
+}

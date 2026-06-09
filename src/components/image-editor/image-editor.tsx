@@ -3,7 +3,7 @@ import React, { useEffect, useState, Activity } from "react";
 
 import dynamic from "next/dynamic";
 
-import { X, Check, Crop as CropIcon, Scissors } from "lucide-react";
+import { X, Check, Crop as CropIcon, Scissors, Download } from "lucide-react";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 
 import { cn } from "@/lib/utils/cn";
@@ -36,6 +36,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ slotId, onClose }) => 
   );
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // Local state for the editor, initialized from the store
   const [transformation, setTransformation] = useState<Transformation>(
@@ -75,6 +76,26 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ slotId, onClose }) => 
       alert("Failed to save. Please try again.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!sourceUrl || !symbol) return;
+    setIsDownloading(true);
+    try {
+      const resultUrl = await generateSticker(sourceUrl, transformation, maskData);
+      const link = document.createElement("a");
+      link.href = resultUrl;
+      const cleanName = symbol.name.replace(/\s+/g, "_");
+      link.download = `${cleanName}.webp`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Failed to download image:", err);
+      alert("Failed to generate download. Please try again.");
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -133,20 +154,37 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ slotId, onClose }) => 
           </button>
         </div>
 
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-black text-white uppercase shadow-lg transition-all hover:bg-emerald-500 hover:shadow-emerald-500/20 active:scale-95 disabled:opacity-50 sm:gap-2 sm:px-6 sm:py-2 sm:text-sm"
-        >
-          {isSaving ? (
-            "..."
-          ) : (
-            <>
-              <Check size={16} className="sm:h-5 sm:w-5" />
-              <span>Done</span>
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleDownload}
+            disabled={isSaving || isDownloading}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-3 py-1.5 text-[10px] font-black text-slate-200 uppercase shadow-lg transition-all hover:bg-slate-700 hover:text-white active:scale-95 disabled:opacity-50 sm:gap-2 sm:px-5 sm:py-2 sm:text-xs"
+          >
+            {isDownloading ? (
+              "..."
+            ) : (
+              <>
+                <Download size={14} className="sm:h-4 sm:w-4" />
+                <span>Download</span>
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={handleSave}
+            disabled={isSaving || isDownloading}
+            className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-1.5 text-[10px] font-black text-white uppercase shadow-lg transition-all hover:bg-emerald-500 hover:shadow-emerald-500/20 active:scale-95 disabled:opacity-50 sm:gap-2 sm:px-6 sm:py-2 sm:text-xs"
+          >
+            {isSaving ? (
+              "..."
+            ) : (
+              <>
+                <Check size={14} className="sm:h-4 sm:w-4" />
+                <span>Done</span>
+              </>
+            )}
+          </button>
+        </div>
       </header>
 
       {/* Main Workbench */}
