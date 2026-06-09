@@ -207,27 +207,31 @@ export async function generateSticker(
         // Set global common settings for the mask builder
         mCtx.fillStyle = "white";
 
-        for (const path of maskPaths) {
-          mCtx.globalCompositeOperation =
-            path.mode === "subtract" ? "destination-out" : "source-over";
+        if (maskPaths.length === 0) {
+          mCtx.fillRect(0, 0, cropW, cropH);
+        } else {
+          for (const path of maskPaths) {
+            mCtx.globalCompositeOperation =
+              path.mode === "subtract" ? "destination-out" : "source-over";
 
-          if (path.tool === "ai" && path.maskDataUrl) {
-            // AI masks are stored A-space (Original size), so transform them to B-space
-            const maskImg = new Image();
-            maskImg.src = path.maskDataUrl;
-            await new Promise((res) => {
-              maskImg.onload = res;
-              maskImg.onerror = res;
-            });
+            if (path.tool === "ai" && path.maskDataUrl) {
+              // AI masks are stored A-space (Original size), so transform them to B-space
+              const maskImg = new Image();
+              maskImg.src = path.maskDataUrl;
+              await new Promise((res) => {
+                maskImg.onload = res;
+                maskImg.onerror = res;
+              });
 
-            mCtx.save();
-            applyCropTransform(mCtx, transformation);
-            mCtx.drawImage(maskImg, 0, 0);
-            mCtx.restore();
-          } else {
-            // Manual tools: points are A-space, so transform points to B-space locally
-            const localPaths = transformMaskData([path], transformation, "A2B");
-            drawMaskPaths(mCtx, localPaths);
+              mCtx.save();
+              applyCropTransform(mCtx, transformation);
+              mCtx.drawImage(maskImg, 0, 0);
+              mCtx.restore();
+            } else {
+              // Manual tools: points are A-space, so transform points to B-space locally
+              const localPaths = transformMaskData([path], transformation, "A2B");
+              drawMaskPaths(mCtx, localPaths);
+            }
           }
         }
 
