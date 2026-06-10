@@ -68,7 +68,7 @@ export const GridHeader: React.FC<GridHeaderProps> = ({
                 "col-span-2 flex w-full items-center justify-center gap-2 rounded-xl border-2 px-4 py-2.5 text-sm font-bold transition-all sm:w-auto sm:py-2 md:text-base lg:px-6",
                 isAnyLoading
                   ? "bg-muted text-muted-foreground cursor-not-allowed border-transparent"
-                  : "bg-primary-soft border-primary/20 text-primary hover:bg-primary-soft/80 hover:scale-[1.02] active:scale-[0.98] cursor-pointer",
+                  : "bg-primary-soft border-primary/20 text-primary hover:bg-primary-soft/80 cursor-pointer hover:scale-[1.02] active:scale-[0.98]",
               )}
             >
               <Download size={18} className="shrink-0" />

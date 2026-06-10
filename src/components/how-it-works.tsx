@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import { useDeckSettingsStore } from "@/store/use-settings-store";
+import { useDeckSettingsStore } from "@/store/use-deck-settings-store";
 import { SymbolData } from "@/store/use-symbol-store";
 
 import { GameCard } from "./card-preview/game-card";

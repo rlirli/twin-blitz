@@ -6,7 +6,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 
 import { cn } from "@/lib/utils/cn";
 import { generateProjectivePlane } from "@/lib/utils/game-core";
-import { useDeckSettingsStore } from "@/store/use-settings-store";
+import { useDeckSettingsStore } from "@/store/use-deck-settings-store";
 import { useSymbolStore } from "@/store/use-symbol-store";
 
 import { GameCard } from "./game-card";

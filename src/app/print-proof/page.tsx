@@ -6,36 +6,29 @@ import Link from "next/link";
 
 import { ArrowLeft, Printer, FileDown } from "lucide-react";
 
+import { PrintProofGrid } from "@/components/print-proof/print-proof-grid";
+import { exportProofPagesToZip } from "@/components/print-proof/proof-exporter";
+import { getProofGridCapacity } from "@/components/print-proof/proof-layout";
 import { AppLogo } from "@/components/shared";
-import {
-  PaperSize,
-  PAPER_DIMENSIONS,
-  PAPER_SIZES,
-  DEFAULT_PAPER_SIZE,
-  CARD_DIAMETER_MM,
-} from "@/lib/print/print-layout";
-import { exportCardsToZip } from "@/lib/print/zip-exporter";
+import { PaperSize, PAPER_SIZES, DEFAULT_PAPER_SIZE } from "@/lib/print/print-layout";
 import { cn } from "@/lib/utils/cn";
-import { generateProjectivePlane } from "@/lib/utils/game-core";
-import { getCardPlacements } from "@/lib/utils/layout-engine";
 import { useDeckSettingsStore } from "@/store/use-deck-settings-store";
 import { useSymbolStore } from "@/store/use-symbol-store";
 
-export default function PrintPage() {
+export default function PrintProofPage() {
   const { symbols } = useSymbolStore();
-  const { order, totalCardCount, symbolsPerCard } = useDeckSettingsStore();
+  const { totalSymbolCount } = useDeckSettingsStore();
   const [paperSize, setPaperSize] = useState<PaperSize>(DEFAULT_PAPER_SIZE);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
 
-  const paperDim = PAPER_DIMENSIONS[paperSize];
-  const widthStr = `${paperDim.w}mm`;
-  const heightStr = `${paperDim.h}mm`;
-
-  const rawCards = useMemo(
-    () => generateProjectivePlane(order).slice(0, totalCardCount),
-    [order, totalCardCount],
+  const activeSymbols = useMemo(
+    () => symbols.slice(0, totalSymbolCount),
+    [symbols, totalSymbolCount],
   );
+
+  const { symbolsPerPage } = getProofGridCapacity(paperSize);
+  const totalPages = Math.ceil(activeSymbols.length / symbolsPerPage);
 
   const handleExportZip = async () => {
     if (isExporting) return;
@@ -43,13 +36,13 @@ export default function PrintPage() {
     setExportProgress(0);
 
     try {
-      const blob = await exportCardsToZip(rawCards, symbols, symbolsPerCard, paperSize, (count) => {
+      const blob = await exportProofPagesToZip(activeSymbols, paperSize, (count) => {
         setExportProgress(count);
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `twin-blitz-cards-${paperSize}cm.zip`;
+      a.download = `twin-blitz-print-proof-${paperSize}cm.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -81,11 +74,11 @@ export default function PrintPage() {
           <AppLogo size="sm" />
         </div>
         <h1 className="text-foreground mb-4 text-4xl font-black tracking-tighter">
-          Print Preparation
+          Print Proof Sheet
         </h1>
         <p className="text-muted-foreground mb-10 text-lg leading-relaxed">
-          Your card deck is ready. Choose your photo paper size below to generate the correctly
-          scaled cutting sheets.
+          Verify symbol print colors and legibility on your paper. All active symbols are listed
+          upright in a clean grid.
         </p>
         <div className="bg-card border-border rounded-2xl border p-8 shadow-[0_8px_32px_rgba(0,0,0,0.05)]">
           <div className="mb-8">
@@ -116,7 +109,7 @@ export default function PrintPage() {
               style={{ boxShadow: "0 8px 24px var(--primary-glow)" }}
             >
               <Printer size={20} />
-              Print My Deck (.pdf)
+              Print Proof (.pdf)
             </button>
 
             <button
@@ -134,93 +127,18 @@ export default function PrintPage() {
               {isExporting ? (
                 <>
                   <span className="border-primary h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" />
-                  ({exportProgress}/{totalCardCount})
+                  ({exportProgress}/{totalPages})
                 </>
               ) : (
-                "Export as Images (.zip)"
+                "Export Pages (.zip)"
               )}
             </button>
           </div>
-
-          <p className="text-muted-foreground/80 mt-4 text-sm font-medium">
-            For <b>Cewe Sofortfotos</b> use 10x15 cm format and image export.
-          </p>
         </div>
       </header>
 
-      {/* ── Pages for Printing ── */}
-      <div className="flex flex-col items-center gap-12 pb-24 print:block print:gap-0 print:pb-0">
-        {rawCards.map((cardIndices, cardIdx) => {
-          const placements = getCardPlacements(cardIdx, symbolsPerCard);
-
-          return (
-            <div
-              key={cardIdx}
-              className="relative flex items-center justify-center bg-white shadow-2xl print:mb-0 print:break-after-page print:border-0 print:shadow-none"
-              style={{
-                width: widthStr,
-                height: heightStr,
-              }}
-            >
-              <div
-                className="relative overflow-hidden rounded-full border-2 border-slate-300 bg-white"
-                style={{ width: `${CARD_DIAMETER_MM}mm`, height: `${CARD_DIAMETER_MM}mm` }}
-              >
-                {cardIndices.map((symbolIdx, i) => {
-                  const symbol = symbols[symbolIdx];
-                  const placement = placements[i];
-
-                  return (
-                    <div
-                      key={symbolIdx}
-                      className="absolute"
-                      style={{
-                        left: `${placement.x}%`,
-                        top: `${placement.y}%`,
-                        transform: `translate(-50%, -50%) rotate(${placement.rotation}deg) scale(${placement.scale})`,
-                      }}
-                    >
-                      {symbol.url ? (
-                        <img
-                          src={symbol.url}
-                          alt="symbol"
-                          className="pointer-events-none h-16 w-16 object-contain select-none"
-                        />
-                      ) : (
-                        <div className="pointer-events-none flex h-12 w-12 items-center justify-center rounded-full border border-gray-100 bg-gray-50 text-[10px] text-gray-300 select-none">
-                          {symbolIdx}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="text-primary pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 font-mono text-sm font-bold tracking-tighter uppercase select-none">
-                Twin Blitz - Card #{cardIdx + 1}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <style jsx global>{`
-        @media print {
-          body {
-            background-color: white !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          @page {
-            margin: 0;
-            size: ${widthStr} ${heightStr};
-          }
-          .print:break-after-page {
-            page-break-after: always;
-            break-after: page;
-          }
-        }
-      `}</style>
+      {/* ── Proof Grid Sheets ── */}
+      <PrintProofGrid symbols={activeSymbols} paperSize={paperSize} />
     </div>
   );
 }

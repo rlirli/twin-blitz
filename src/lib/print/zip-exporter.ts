@@ -2,22 +2,14 @@ import JSZip from "jszip";
 
 import { SymbolData } from "@/store/use-symbol-store";
 
-import { getCardPlacements } from "./layout-engine";
-
-/** Pixel density for print-quality images. */
-const DPI = 300;
-/** mm to inch conversion. */
-const MM_TO_INCH = 25.4;
-
-/** Paper dimensions in mm based on selection. */
-const PAPER_DIMENSIONS = {
-  "9x13": { w: 90, h: 130 },
-  "10x15": { w: 100, h: 150 },
-  "13x18": { w: 130, h: 180 },
-};
-
-/** Diameter of the card in mm. */
-const CARD_DIAMETER_MM = 84;
+import { getCardPlacements } from "../utils/layout-engine";
+import {
+  PaperSize,
+  PAPER_DIMENSIONS,
+  CARD_DIAMETER_MM,
+  PRINT_DPI,
+  MM_TO_INCH,
+} from "./print-layout";
 
 /**
  * Renders a single game card to a high-resolution <canvas> element.
@@ -28,12 +20,12 @@ async function renderCardToCanvas(
   symbolIndices: number[],
   symbols: SymbolData[],
   symbolsPerCard: number,
-  paperSize: "9x13" | "10x15" | "13x18",
+  paperSize: PaperSize,
 ): Promise<HTMLCanvasElement> {
   const { w, h } = PAPER_DIMENSIONS[paperSize];
-  const pxW = Math.round((w / MM_TO_INCH) * DPI);
-  const pxH = Math.round((h / MM_TO_INCH) * DPI);
-  const cardPx = Math.round((CARD_DIAMETER_MM / MM_TO_INCH) * DPI);
+  const pxW = Math.round((w / MM_TO_INCH) * PRINT_DPI);
+  const pxH = Math.round((h / MM_TO_INCH) * PRINT_DPI);
+  const cardPx = Math.round((CARD_DIAMETER_MM / MM_TO_INCH) * PRINT_DPI);
 
   const canvas = document.createElement("canvas");
   canvas.width = pxW;
@@ -83,7 +75,8 @@ async function renderCardToCanvas(
 
   // 4. Tiny print label
   ctx.fillStyle = "oklch(58.5% 0.233 277.117)"; // indigo-500
-  ctx.font = `${Math.round(9 * (DPI / 72))}px monospace`;
+  ctx.font = `${Math.round(9 * (PRINT_DPI / 72))}px monospace`;
+  ctx.textBaseline = "alphabetic";
   ctx.textAlign = "center";
   ctx.fillText(`TWIN BLITZ - CARD #${cardIdx + 1}`, centerX, pxH - 20);
 
@@ -110,7 +103,7 @@ function drawRotatedImage(
       ctx.rotate(angleRad);
 
       // Base size for symbols is roughly 16mm in print (around 190px at 300dpi)
-      const baseSize = Math.round((16 / MM_TO_INCH) * DPI);
+      const baseSize = Math.round((16 / MM_TO_INCH) * PRINT_DPI);
       const maxSize = baseSize * scale;
 
       const imgWidth = img.width;
@@ -136,13 +129,13 @@ function drawRotatedImage(
 }
 
 /**
- * Main function to generate the ZIP archive of 57 cards.
+ * Main function to generate the ZIP archive of cards.
  */
 export async function exportCardsToZip(
   rawCards: number[][],
   symbols: SymbolData[],
   symbolsPerCard: number,
-  paperSize: "9x13" | "10x15" | "13x18",
+  paperSize: PaperSize,
   onProgress?: (count: number) => void,
 ): Promise<Blob> {
   const zip = new JSZip();
@@ -166,9 +159,7 @@ export async function exportCardsToZip(
 /**
  * Generates a ZIP archive containing all uploaded/edited symbols.
  */
-export async function exportSymbolsToZip(
-  symbols: SymbolData[],
-): Promise<Blob> {
+export async function exportSymbolsToZip(symbols: SymbolData[]): Promise<Blob> {
   const zip = new JSZip();
   const folder = zip.folder("twin-blitz-symbols");
 

@@ -5,14 +5,14 @@ import React, { useRef, useState, useMemo, useEffect } from "react";
 import * as LucideIcons from "lucide-react";
 import { useQueryState, parseAsInteger, parseAsStringLiteral } from "nuqs";
 
+import { exportSymbolsToZip } from "@/lib/print/zip-exporter";
 import { cn } from "@/lib/utils/cn";
 import {
   lucideIconToImageUrl,
   compressImage,
   normalizeSourceImage,
 } from "@/lib/utils/image-processing";
-import { exportSymbolsToZip } from "@/lib/utils/image-zip-exporter";
-import { useDeckSettingsStore } from "@/store/use-settings-store";
+import { useDeckSettingsStore } from "@/store/use-deck-settings-store";
 import { useSymbolStore } from "@/store/use-symbol-store";
 
 import { ImageEditor } from "../image-editor/image-editor";
@@ -145,7 +145,7 @@ export const SymbolGrid: React.FC = () => {
       setIsDefaultLoading(false);
     }
   };
-  
+
   const handleBulkDownload = async () => {
     setIsBulkDownloading(true);
     try {

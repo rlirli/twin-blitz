@@ -7,7 +7,7 @@ import { HowItWorks } from "@/components/how-it-works";
 import { PrintSection } from "@/components/print-section";
 import { AppLogo } from "@/components/shared";
 import { SymbolGrid } from "@/components/symbol-grid";
-import { useDeckSettingsStore } from "@/store/use-settings-store";
+import { useDeckSettingsStore } from "@/store/use-deck-settings-store";
 
 export default function Home() {
   const { totalSymbolCount, totalCardCount } = useDeckSettingsStore();

@@ -32,7 +32,7 @@ export const PrintSection: React.FC<PrintSectionProps> = ({ className }) => {
         </p>
       </div>
 
-      <div className="bg-muted/30 flex flex-col items-center justify-center rounded-lg p-2 py-6">
+      <div className="bg-muted/30 flex flex-col gap-3 rounded-lg p-2 py-6 sm:flex-row sm:justify-center">
         <Link
           href="/print"
           className="bg-primary text-primary-foreground text-md inline-flex cursor-pointer items-center justify-center gap-2.5 rounded-2xl border-0 px-6 py-4 leading-tight font-bold no-underline transition-all duration-150 hover:brightness-110 active:scale-[0.97]"
@@ -43,9 +43,16 @@ export const PrintSection: React.FC<PrintSectionProps> = ({ className }) => {
           </span>
           <span className="text-center">Print Cards</span>
         </Link>
-        <p className="text-muted-foreground mt-4 text-center text-xs">
-          Photo print recommended for better gameplay.
-        </p>
+
+        <Link
+          href="/print-proof"
+          className="bg-muted text-muted-foreground text-md  inline-flex cursor-pointer items-center justify-center gap-2.5 rounded-2xl border border-muted-foreground/10 hover:border-muted-foreground/60 px-6 py-4 leading-tight font-bold no-underline transition-all duration-150 active:scale-[0.97]"
+        >
+          <span className="shrink-0">
+            <Printer size={20} />
+          </span>
+          <span className="text-center">Print Proof Sheet</span>
+        </Link>
       </div>
     </div>
   );

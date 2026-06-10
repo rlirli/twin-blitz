@@ -5,7 +5,7 @@ import { ChevronDown } from "lucide-react";
 
 import { cn } from "@/lib/utils/cn";
 import { getCardPlacements } from "@/lib/utils/layout-engine";
-import { useDeckSettingsStore } from "@/store/use-settings-store";
+import { useDeckSettingsStore } from "@/store/use-deck-settings-store";
 
 /**
  * Metadata for deck sizes.
@@ -91,12 +91,17 @@ const DeckIcon = ({
   );
 };
 
+const DEFAULT_DECK_ORDER = 7;
+
 export const DeckSizeSelector: React.FC = () => {
   const { order, setOrder } = useDeckSettingsStore();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const currentOption = DECK_OPTIONS.find((opt) => opt.order === order) || DECK_OPTIONS[2];
+  const currentOption =
+    DECK_OPTIONS.find((opt) => opt.order === order) ||
+    DECK_OPTIONS.find((opt) => opt.order === DEFAULT_DECK_ORDER) ||
+    DECK_OPTIONS[2];
 
   // Close when clicking outside
   useEffect(() => {
