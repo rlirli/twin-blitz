@@ -3,7 +3,13 @@ import JSZip from "jszip";
 import { SymbolData } from "@/store/use-symbol-store";
 
 import { getCardPlacements } from "../utils/layout-engine";
-import { PaperSize, PAPER_DIMENSIONS, PRINT_DPI, MM_TO_INCH } from "./print-layout";
+import {
+  PaperSize,
+  PAPER_DIMENSIONS,
+  CARD_DIAMETER_STANDARD_MM,
+  PRINT_DPI,
+  MM_TO_INCH,
+} from "./print-layout";
 
 /**
  * Renders a single game card to a high-resolution <canvas> element.
@@ -60,9 +66,17 @@ async function renderCardToCanvas(
     const symX = centerX - cardRadius + (placement.x / 100) * cardPx;
     const symY = centerY - cardRadius + (placement.y / 100) * cardPx;
 
-    // Draw the symbol image
+    // Draw the symbol image (scaled by cardDiameter factor to prevent overlap)
+    const scaleFactor = cardDiameter / CARD_DIAMETER_STANDARD_MM;
     try {
-      await drawRotatedImage(ctx, symbol.url, symX, symY, rotationRad, placement.scale);
+      await drawRotatedImage(
+        ctx,
+        symbol.url,
+        symX,
+        symY,
+        rotationRad,
+        placement.scale * scaleFactor,
+      );
     } catch (e) {
       console.warn(`Failed to export symbol ${symbolIdx} on card ${cardIdx}`, e);
     }

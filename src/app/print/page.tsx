@@ -215,7 +215,9 @@ export default function PrintPage() {
                       style={{
                         left: `${placement.x}%`,
                         top: `${placement.y}%`,
-                        transform: `translate(-50%, -50%) rotate(${placement.rotation}deg) scale(${placement.scale})`,
+                        transform: `translate(-50%, -50%) rotate(${placement.rotation}deg) scale(${
+                          placement.scale * (cardDiameter / CARD_DIAMETER_STANDARD_MM)
+                        })`,
                       }}
                     >
                       {symbol.url ? (
