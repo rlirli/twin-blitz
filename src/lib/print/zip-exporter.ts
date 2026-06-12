@@ -3,13 +3,7 @@ import JSZip from "jszip";
 import { SymbolData } from "@/store/use-symbol-store";
 
 import { getCardPlacements } from "../utils/layout-engine";
-import {
-  PaperSize,
-  PAPER_DIMENSIONS,
-  CARD_DIAMETER_MM,
-  PRINT_DPI,
-  MM_TO_INCH,
-} from "./print-layout";
+import { PaperSize, PAPER_DIMENSIONS, PRINT_DPI, MM_TO_INCH } from "./print-layout";
 
 /**
  * Renders a single game card to a high-resolution <canvas> element.
@@ -21,11 +15,12 @@ async function renderCardToCanvas(
   symbols: SymbolData[],
   symbolsPerCard: number,
   paperSize: PaperSize,
+  cardDiameter: number,
 ): Promise<HTMLCanvasElement> {
   const { w, h } = PAPER_DIMENSIONS[paperSize];
   const pxW = Math.round((w / MM_TO_INCH) * PRINT_DPI);
   const pxH = Math.round((h / MM_TO_INCH) * PRINT_DPI);
-  const cardPx = Math.round((CARD_DIAMETER_MM / MM_TO_INCH) * PRINT_DPI);
+  const cardPx = Math.round((cardDiameter / MM_TO_INCH) * PRINT_DPI);
 
   const canvas = document.createElement("canvas");
   canvas.width = pxW;
@@ -136,13 +131,21 @@ export async function exportCardsToZip(
   symbols: SymbolData[],
   symbolsPerCard: number,
   paperSize: PaperSize,
+  cardDiameter: number,
   onProgress?: (count: number) => void,
 ): Promise<Blob> {
   const zip = new JSZip();
   const folder = zip.folder(`twin-blitz-cards-${paperSize}cm`);
 
   for (let i = 0; i < rawCards.length; i++) {
-    const canvas = await renderCardToCanvas(i, rawCards[i], symbols, symbolsPerCard, paperSize);
+    const canvas = await renderCardToCanvas(
+      i,
+      rawCards[i],
+      symbols,
+      symbolsPerCard,
+      paperSize,
+      cardDiameter,
+    );
 
     // Get as blob
     const blob = await new Promise<Blob>((resolve) => {

@@ -12,7 +12,8 @@ import {
   PAPER_DIMENSIONS,
   PAPER_SIZES,
   DEFAULT_PAPER_SIZE,
-  CARD_DIAMETER_MM,
+  CARD_DIAMETER_STANDARD_MM,
+  CARD_DIAMETER_TRAVEL_SIZE_MM,
 } from "@/lib/print/print-layout";
 import { exportCardsToZip } from "@/lib/print/zip-exporter";
 import { cn } from "@/lib/utils/cn";
@@ -25,6 +26,7 @@ export default function PrintPage() {
   const { symbols } = useSymbolStore();
   const { order, totalCardCount, symbolsPerCard } = useDeckSettingsStore();
   const [paperSize, setPaperSize] = useState<PaperSize>(DEFAULT_PAPER_SIZE);
+  const [cardDiameter, setCardDiameter] = useState<number>(CARD_DIAMETER_STANDARD_MM);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
 
@@ -43,9 +45,16 @@ export default function PrintPage() {
     setExportProgress(0);
 
     try {
-      const blob = await exportCardsToZip(rawCards, symbols, symbolsPerCard, paperSize, (count) => {
-        setExportProgress(count);
-      });
+      const blob = await exportCardsToZip(
+        rawCards,
+        symbols,
+        symbolsPerCard,
+        paperSize,
+        cardDiameter,
+        (count) => {
+          setExportProgress(count);
+        },
+      );
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -88,25 +97,54 @@ export default function PrintPage() {
           scaled cutting sheets.
         </p>
         <div className="bg-card border-border rounded-2xl border p-8 shadow-[0_8px_32px_rgba(0,0,0,0.05)]">
-          <div className="mb-8">
-            <label className="text-muted-foreground mb-3 block text-xs font-bold tracking-widest uppercase">
-              Paper Size
-            </label>
-            <div className="flex flex-wrap justify-center gap-2">
-              {PAPER_SIZES.map((size) => (
-                <button
-                  key={size}
-                  onClick={() => setPaperSize(size)}
-                  className={cn(
-                    "rounded-xl border-2 px-6 py-3 text-sm font-bold transition-all active:scale-[0.98]",
-                    paperSize === size
-                      ? "bg-primary-soft border-primary text-primary"
-                      : "bg-muted border-transparent border-zinc-200/20 text-zinc-500 hover:border-zinc-200",
-                  )}
-                >
-                  {size} cm
-                </button>
-              ))}
+          <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div>
+              <label className="text-muted-foreground mb-3 block text-xs font-bold tracking-widest uppercase">
+                Paper Size
+              </label>
+              <div className="flex flex-wrap justify-center gap-2">
+                {PAPER_SIZES.map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => setPaperSize(size)}
+                    className={cn(
+                      "rounded-xl border-2 px-6 py-3 text-sm font-bold transition-all active:scale-[0.98]",
+                      paperSize === size
+                        ? "bg-primary-soft border-primary text-primary"
+                        : "bg-muted border-transparent border-zinc-200/20 text-zinc-500 hover:border-zinc-200",
+                    )}
+                  >
+                    {size} cm
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-muted-foreground mb-3 block text-xs font-bold tracking-widest uppercase">
+                Card Diameter
+              </label>
+              <div className="flex flex-wrap justify-center gap-2">
+                {[
+                  { label: "Standard (84mm)", value: CARD_DIAMETER_STANDARD_MM },
+                  { label: "Travel (75mm)", value: CARD_DIAMETER_TRAVEL_SIZE_MM },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setCardDiameter(option.value)}
+                    className={cn(
+                      "rounded-xl border-2 px-5 py-3 text-sm font-bold transition-all active:scale-[0.98]",
+                      cardDiameter === option.value
+                        ? "bg-primary-soft border-primary text-primary"
+                        : "bg-muted border-transparent border-zinc-200/20 text-zinc-500 hover:border-zinc-200",
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -164,7 +202,7 @@ export default function PrintPage() {
             >
               <div
                 className="relative overflow-hidden rounded-full border-2 border-slate-300 bg-white"
-                style={{ width: `${CARD_DIAMETER_MM}mm`, height: `${CARD_DIAMETER_MM}mm` }}
+                style={{ width: `${cardDiameter}mm`, height: `${cardDiameter}mm` }}
               >
                 {cardIndices.map((symbolIdx, i) => {
                   const symbol = symbols[symbolIdx];

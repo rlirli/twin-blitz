@@ -46,7 +46,7 @@ export const PrintSection: React.FC<PrintSectionProps> = ({ className }) => {
 
         <Link
           href="/print-proof"
-          className="bg-muted text-muted-foreground text-md  inline-flex cursor-pointer items-center justify-center gap-2.5 rounded-2xl border border-muted-foreground/10 hover:border-muted-foreground/60 px-6 py-4 leading-tight font-bold no-underline transition-all duration-150 active:scale-[0.97]"
+          className="bg-muted text-muted-foreground text-md border-muted-foreground/10 hover:border-muted-foreground/60 inline-flex cursor-pointer items-center justify-center gap-2.5 rounded-2xl border px-6 py-4 leading-tight font-bold no-underline transition-all duration-150 active:scale-[0.97]"
         >
           <span className="shrink-0">
             <Printer size={20} />

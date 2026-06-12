@@ -14,8 +14,11 @@ export const PAPER_DIMENSIONS: Record<PaperSize, { w: number; h: number }> = {
   "13x18": { w: 130, h: 180 },
 };
 
-/** Diameter of game cards in mm. */
-export const CARD_DIAMETER_MM = 84;
+/** Standard diameter of game cards in mm. */
+export const CARD_DIAMETER_STANDARD_MM = 84;
+
+/** Travel size diameter of game cards in mm. */
+export const CARD_DIAMETER_TRAVEL_SIZE_MM = 75;
 
 /** Pixel density for print-quality images (300 DPI). */
 export const PRINT_DPI = 300;
